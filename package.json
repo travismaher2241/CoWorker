@@ -1,0 +1,14 @@
+{
+  "name": "coworker-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Track emails you're waiting on replies to, plus a personal to-do list.",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
