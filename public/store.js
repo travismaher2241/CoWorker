@@ -47,6 +47,7 @@ export async function firebaseStore(config) {
     },
     signIn: () => authMod.signInWithPopup(auth, new authMod.GoogleAuthProvider()),
     signOut: () => authMod.signOut(auth),
+    getIdToken: () => auth.currentUser?.getIdToken() ?? Promise.resolve(null),
 
     subscribe(onChange, onError) {
       unsubs.forEach((u) => u());
@@ -114,6 +115,7 @@ export function localStore() {
     onUser(cb) { cb({ uid: 'demo', email: 'Demo mode (saved in this browser only)' }); return () => {}; },
     signIn: async () => {},
     signOut: async () => { location.href = location.pathname; },
+    getIdToken: async () => null,
     subscribe(onChange) { listener = onChange; onChange(structuredClone(data)); return () => {}; },
     addRequest: async (item) => add('requests', item),
     updateRequest: async (id, patch) => update('requests', id, patch),

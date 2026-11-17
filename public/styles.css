@@ -208,3 +208,22 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .foot button.link { font-size: 13px; }
 .top + #screen-app .top, #screen-app .top { padding-top: 0; }
+
+/* ---------- quick add (Gemini) ---------- */
+.quick { padding: 0 14px 6px; }
+.drop {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px; text-align: center;
+  border: 2px dashed var(--line); border-radius: var(--radius); background: var(--bg); cursor: pointer;
+}
+.drop:hover, .drop:focus, .drop.over { border-color: var(--accent); outline: none; }
+.drop.busy { opacity: .6; pointer-events: none; }
+button.link.inline { padding: 0; color: var(--accent); font-size: inherit; text-decoration: underline; }
+.paste-text { margin-top: 8px; }
+.paste-text > summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.paste-text textarea { margin: 8px 0; }
+.quick-status { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+.quick-status:empty { display: none; }
+.quick-status.error { color: var(--bad); }
+.quick-status.ok { color: var(--ok); }
+.ai-filled { border-color: var(--accent) !important; background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
+.preview { align-self: center; object-fit: contain; max-height: 120px; max-width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }

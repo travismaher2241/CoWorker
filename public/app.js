@@ -4,8 +4,10 @@ import {
 } from './time.js';
 import { lastContact, requestStatus, nudgeText, PRIORITIES } from './logic.js';
 import { firebaseStore, localStore, DEFAULT_SETTINGS } from './store.js';
+import { setupQuickAdd } from './quickadd.js';
 
 let store;
+let quick;
 const state = {
   requests: [],
   todos: [],
@@ -290,6 +292,12 @@ function closeForm() {
 }
 
 function bindEvents() {
+  quick = setupQuickAdd({
+    form: $('#requestForm'),
+    getToken: () => store.getIdToken(),
+    toast,
+  });
+
   $('#requestForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
@@ -304,6 +312,7 @@ function bindEvents() {
       followUps: [], status: 'open', resolvedAt: null, resolution: '', createdAt: nowIso(),
     }));
     f.reset();
+    quick.reset();
     resetSentAt();
     if (state.filter === 'resolved') setFilter('open');
     toast(`Tracking: ${person}`);

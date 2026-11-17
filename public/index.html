@@ -50,6 +50,21 @@
 
       <details class="card add-card" id="addRequestCard" open>
         <summary>Log an email I sent</summary>
+        <div class="quick" id="quickAdd">
+          <div class="drop" id="dropZone" tabindex="0">
+            <b>Fastest: paste a screenshot of the sent email</b>
+            <span class="muted">Press Ctrl+V (or ⌘V) anywhere here, drag a picture in, or
+              <button type="button" class="link inline" id="pickImageBtn">choose a picture</button>.
+              Gemini fills in the details for you to check.</span>
+            <input type="file" id="imageInput" accept="image/*" hidden>
+          </div>
+          <details class="paste-text">
+            <summary>…or paste the email text instead</summary>
+            <textarea id="emailText" rows="5" placeholder="Paste the email here, including the To line and the date if you can"></textarea>
+            <button type="button" id="readTextBtn">Fill in from text</button>
+          </details>
+          <p class="quick-status" id="quickStatus" role="status"></p>
+        </div>
         <form id="requestForm" class="grid-form" autocomplete="off">
           <label>Who did you email?
             <input name="person" list="peopleList" required placeholder="e.g. Sam from Finance">
