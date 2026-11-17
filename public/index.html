@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoWorker Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%8F%B3%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="demoBanner" class="demo-banner" hidden>Demo mode: everything is saved in this browser only. <a href="/">Go to the real app</a></div>
+  <header class="top">
+    <div class="brand">
+      <h1>CoWorker Tracker</h1>
+      <span class="clock" id="clock" title="Times are shown in Sydney time"></span>
+    </div>
+  </header>
+
+  <section id="screen-loading" class="screen"><p class="muted">Loading…</p></section>
+
+  <section id="screen-setup" class="screen" hidden>
+    <div class="card gate">
+      <h2>Almost there: connect Firebase</h2>
+      <p>This site can't find its Firebase settings yet. Add the <code>FIREBASE_*</code> environment variables in your Vercel project (see the README), then redeploy.</p>
+      <p class="error-text" id="setupError"></p>
+      <p><a href="?demo">Try it in demo mode</a> (saves in this browser only).</p>
+    </div>
+  </section>
+
+  <section id="screen-signin" class="screen" hidden>
+    <div class="card gate">
+      <h2>Sign in</h2>
+      <p>Your list is private to your account and syncs between your computer and phone.</p>
+      <button id="signInBtn" class="primary">Sign in with Google</button>
+    </div>
+  </section>
+
+  <div id="screen-app" hidden>
+  <header class="top">
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab" data-tab="waiting" aria-selected="true">Waiting on <span class="pill" id="waitingCount"></span></button>
+      <button role="tab" class="tab" data-tab="todos" aria-selected="false">To-do <span class="pill" id="todoCount"></span></button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ================= WAITING ON ================= -->
+    <section id="tab-waiting" class="panel">
+      <div class="summary" id="waitingSummary"></div>
+
+      <details class="card add-card" id="addRequestCard" open>
+        <summary>Log an email I sent</summary>
+        <form id="requestForm" class="grid-form" autocomplete="off">
+          <label>Who did you email?
+            <input name="person" list="peopleList" required placeholder="e.g. Sam from Finance">
+          </label>
+          <label class="wide">What are you waiting for?
+            <input name="subject" required placeholder="e.g. Q3 budget numbers for the board pack">
+          </label>
+          <label>Sent
+            <input name="sentAt" type="datetime-local" required>
+          </label>
+          <label><span>Need it by <span class="muted">(optional)</span></span>
+            <input name="needBy" type="date">
+          </label>
+          <label class="full"><span>Notes <span class="muted">(optional: email subject line, link, context)</span></span>
+            <textarea name="details" rows="2"></textarea>
+          </label>
+          <div class="full actions">
+            <button type="submit" class="primary">Start tracking</button>
+            <button type="button" class="link" id="sentNowBtn">Reset time to now</button>
+          </div>
+        </form>
+        <datalist id="peopleList"></datalist>
+      </details>
+
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Show">
+          <button data-filter="open" class="on">Open</button>
+          <button data-filter="resolved">Resolved</button>
+          <button data-filter="all">All</button>
+        </div>
+        <input type="search" id="requestSearch" placeholder="Search person or topic…">
+        <label class="setting">Nudge after
+          <input type="number" id="nudgeAfter" min="0" max="60" step="0.5"> days of silence
+        </label>
+      </div>
+
+      <div id="requestList" class="list"></div>
+    </section>
+
+    <!-- ================= TO-DO ================= -->
+    <section id="tab-todos" class="panel" hidden>
+      <form id="todoForm" class="card todo-add" autocomplete="off">
+        <input name="text" required placeholder="Add a to-do and press Enter…" aria-label="To-do">
+        <input name="due" type="date" aria-label="Due date" title="Due date (optional)">
+        <select name="priority" aria-label="Priority">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+        </select>
+        <button type="submit" class="primary">Add</button>
+      </form>
+      <div class="toolbar">
+        <input type="search" id="todoSearch" placeholder="Search to-dos…">
+      </div>
+      <div id="todoList"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Signed in as <b id="who"></b></span>
+    <button class="link" id="exportBtn">Download a backup</button>
+    <button class="link" id="signOutBtn">Sign out</button>
+  </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
