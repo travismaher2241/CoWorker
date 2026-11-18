@@ -2,7 +2,7 @@ import {
   isoToLocalInput, localInputToIso, todayLocal, addDays,
   showDateTime, showDate, showClock, localHM, localDayLine, duration, relativeDay,
 } from './time.js';
-import { lastContact, requestStatus, nudgeText, PRIORITIES } from './logic.js';
+import { lastContact, requestStatus, PRIORITIES } from './logic.js';
 import { firebaseStore, localStore, DEFAULT_SETTINGS } from './store.js';
 import { setupQuickAdd } from './quickadd.js';
 
@@ -16,7 +16,7 @@ const state = {
   search: '',
   todoSearch: '',
   expanded: new Set(),
-  openForm: null, // { id, kind: 'followup' | 'resolve' | 'edit' | 'todo-edit' }
+  openForm: null, // { id, kind: 'resolve' | 'edit' | 'todo-edit' }
 };
 
 // ---------------- helpers ----------------
@@ -58,14 +58,14 @@ function flipBoard() {
   flipTimer = setTimeout(() => document.body.classList.remove('flip-on'), 900);
 }
 
-const BOARD_WORD = { overdue: 'Delayed', nudge: 'Final call', waiting: 'Waiting', resolved: 'Arrived' };
+const BOARD_WORD = { overdue: 'Overdue', waiting: 'No reply', resolved: 'Answered' };
 
 const clean = (v, max) => String(v ?? '').trim().slice(0, max);
-const status = (r) => requestStatus(r, state.settings.nudgeAfterDays);
+const status = (r) => requestStatus(r);
 
 // ---------------- waiting on ----------------
 
-const LEVEL_RANK = { overdue: 0, nudge: 1, waiting: 2, resolved: 3 };
+const LEVEL_RANK = { overdue: 0, waiting: 1, resolved: 2 };
 
 function sortedRequests() {
   const q = state.search.toLowerCase();
@@ -83,8 +83,7 @@ function sortedRequests() {
 
 function renderSummary() {
   const open = state.requests.filter((r) => r.status === 'open');
-  const counts = { overdue: 0, nudge: 0, waiting: 0 };
-  for (const r of open) counts[status(r).level]++;
+  const overdue = open.filter((r) => status(r).level === 'overdue').length;
   const oldest = open.map((r) => r.sentAt).sort()[0];
   const resolved = state.requests.filter((r) => r.status === 'resolved' && r.resolvedAt);
   const avg = resolved.length
@@ -92,14 +91,14 @@ function renderSummary() {
     : null;
 
   $('#waitingSummary').innerHTML = `
-    <div class="stat ${counts.overdue ? 'bad' : ''}">${flap(String(counts.overdue))}<span>Delayed</span><small>past their need-by date</small></div>
-    <div class="stat ${counts.nudge ? 'warn' : ''}">${flap(String(counts.nudge))}<span>Final call</span><small>time to nudge</small></div>
-    <div class="stat">${flap(String(open.length))}<span>Open</span><small>still waiting</small></div>
-    <div class="stat">${flap(oldest ? duration(Date.now() - Date.parse(oldest)) : '--')}<span>Longest wait</span><small>oldest open item</small></div>
-    <div class="stat">${flap(avg === null ? '--' : duration(avg))}<span>Avg reply</span><small>time to get an answer</small></div>`;
+    <div class="stat">${flap(String(state.requests.length))}<span>Asked</span><small>requests sent</small></div>
+    <div class="stat ${open.length ? 'bad' : ''}">${flap(String(open.length))}<span>No reply</span><small>still waiting${overdue ? `, ${overdue} overdue` : ''}</small></div>
+    <div class="stat">${flap(String(resolved.length))}<span>Answered</span><small>got a response</small></div>
+    <div class="stat">${flap(avg === null ? '--' : duration(avg))}<span>Avg reply</span><small>time to get an answer</small></div>
+    <div class="stat">${flap(oldest ? duration(Date.now() - Date.parse(oldest)) : '--')}<span>Longest wait</span><small>oldest unanswered</small></div>`;
 
   $('#waitingCount').textContent = open.length || '';
-  $('#waitingCount').className = 'pill' + (counts.overdue + counts.nudge ? ' hot' : '');
+  $('#waitingCount').className = 'pill' + (overdue ? ' hot' : '');
 }
 
 function renderPeople() {
@@ -117,7 +116,7 @@ function requestCard({ r, s }) {
   const timeline = [
     { at: r.sentAt, label: 'Original email sent', note: r.details },
     ...r.followUps.map((f, i) => ({ at: f.at, label: `Follow-up ${i + 1} (${f.method})`, note: f.note, fid: f.id })),
-    ...(r.status === 'resolved' ? [{ at: r.resolvedAt, label: 'Resolved', note: r.resolution }] : []),
+    ...(r.status === 'resolved' ? [{ at: r.resolvedAt, label: 'Got a response', note: r.resolution }] : []),
   ];
 
   return `
@@ -132,40 +131,30 @@ function requestCard({ r, s }) {
       </div>
       <div class="subject">${esc(r.subject)}</div>
       <div class="meta">
-        ${s.level !== 'waiting' && s.level !== 'resolved' ? `<b class="reason">${esc(s.reason)}</b> · ` : ''}Sent ${esc(showDateTime(r.sentAt))}
-        ${nudges ? ` · ${nudges} follow-up${nudges > 1 ? 's' : ''}, last ${esc(showDateTime(lastContact(r)))}` : ' · no follow-ups yet'}
+        ${s.level === 'overdue' ? `<b class="reason">${esc(s.reason)}</b> · ` : ''}Asked ${esc(showDateTime(r.sentAt))}
+        ${r.status === 'resolved' ? ` · answered ${esc(showDateTime(r.resolvedAt))}` : ''}
+        ${nudges ? ` · followed up ${nudges} time${nudges > 1 ? 's' : ''}, last ${esc(showDateTime(lastContact(r)))}` : ''}
         ${r.needBy && r.status === 'open' ? ` · need by ${esc(showDate(r.needBy))}` : ''}
       </div>
     </div>
     <div class="req-wait">
       ${flap(duration(waitedMs).replace('just now', 'now'))}
-      <span>${r.status === 'resolved' ? 'to get an answer' : 'waited so far'}</span>
+      <span>${r.status === 'resolved' ? 'to get an answer' : 'and counting'}</span>
     </div>
     <div class="req-actions">
       ${r.needsReview ? '<button data-act="reviewed" class="review">Looks right ✓</button>' : ''}
       ${r.status === 'open' ? `
-        <button data-act="followup" class="${s.level !== 'waiting' ? 'primary' : ''}">Log follow-up</button>
-        <button data-act="copy">Copy nudge text</button>
-        <button data-act="resolve">Got it ✓</button>` : `
+        <button data-act="resolve" class="primary">Got a response ✓</button>` : `
         <button data-act="reopen">Reopen</button>`}
       <button data-act="toggle" class="link">${expanded ? 'Hide history' : 'History'}</button>
       <button data-act="edit" class="link">Edit</button>
       <button data-act="delete" class="link danger">Delete</button>
     </div>
-    ${form === 'followup' ? `
-      <form class="inline-form" data-form="followup">
-        <label>When <input name="at" type="datetime-local" value="${nowLocal}" required></label>
-        <label>How
-          <select name="method"><option>email</option><option>teams</option><option>call</option><option>in person</option><option>other</option></select>
-        </label>
-        <label class="grow">Note <input name="note" placeholder="optional"></label>
-        <button class="primary">Save</button><button type="button" data-act="cancel" class="link">Cancel</button>
-      </form>` : ''}
     ${form === 'resolve' ? `
       <form class="inline-form" data-form="resolve">
-        <label>Answered <input name="resolvedAt" type="datetime-local" value="${nowLocal}" required></label>
-        <label class="grow">Outcome <input name="resolution" placeholder="optional, e.g. Sam sent the file"></label>
-        <button class="primary">Mark resolved</button><button type="button" data-act="cancel" class="link">Cancel</button>
+        <label>Response came in <input name="resolvedAt" type="datetime-local" value="${nowLocal}" required></label>
+        <label class="grow">What they said <input name="resolution" placeholder="optional, e.g. Sam sent the file"></label>
+        <button class="primary">Save</button><button type="button" data-act="cancel" class="link">Cancel</button>
       </form>` : ''}
     ${form === 'edit' ? `
       <form class="inline-form" data-form="edit">
@@ -195,7 +184,7 @@ function renderRequests() {
   if (!items.length) {
     const msg = state.requests.length
       ? 'Nothing matches here.'
-      : 'Nothing tracked yet. When you send someone an email asking for something, log it above.';
+      : 'Nothing logged yet. When you email someone asking for something, log it above.';
     $('#requestList').innerHTML = `<p class="empty">${msg}</p>`;
     return;
   }
@@ -345,14 +334,6 @@ function bindEvents() {
 
   $('#requestSearch').addEventListener('input', (e) => { state.search = e.target.value; renderRequests(); });
 
-  $('#nudgeAfter').addEventListener('change', (e) => {
-    const n = Number(e.target.value);
-    if (!Number.isFinite(n) || n < 0 || n > 60) return toast('Pick between 0 and 60 days.', true);
-    state.settings = { ...state.settings, nudgeAfterDays: n };
-    save(store.saveSettings(state.settings));
-    renderRequests();
-  });
-
   $('#requestList').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
@@ -360,7 +341,7 @@ function bindEvents() {
     if (!r) return;
     const act = btn.dataset.act;
 
-    if (['followup', 'resolve', 'edit'].includes(act)) {
+    if (['resolve', 'edit'].includes(act)) {
       state.openForm = state.openForm?.id === r.id && state.openForm.kind === act ? null : { id: r.id, kind: act };
       render(true);
       $(`[data-id="${r.id}"] .inline-form input:not([type=datetime-local])`)?.focus();
@@ -369,12 +350,6 @@ function bindEvents() {
     } else if (act === 'toggle') {
       state.expanded.has(r.id) ? state.expanded.delete(r.id) : state.expanded.add(r.id);
       renderRequests();
-    } else if (act === 'copy') {
-      const text = nudgeText(r);
-      navigator.clipboard.writeText(text).then(
-        () => toast('Nudge text copied. Paste it into your reply in Outlook.'),
-        () => window.prompt('Copy this text:', text),
-      );
     } else if (act === 'reviewed') {
       save(store.updateRequest(r.id, { needsReview: false }));
     } else if (act === 'reopen') {
@@ -391,21 +366,11 @@ function bindEvents() {
     const f = e.target;
     const r = state.requests.find((x) => x.id === f.closest('[data-id]').dataset.id);
     if (!r) return;
-    if (f.dataset.form === 'followup') {
-      const fu = {
-        id: crypto.randomUUID(),
-        at: localInputToIso(f.at.value),
-        method: f.method.value,
-        note: clean(f.note.value, 1000),
-      };
-      const followUps = [...r.followUps, fu].sort((a, b) => a.at.localeCompare(b.at));
-      save(store.updateRequest(r.id, { followUps }));
-      toast('Follow-up logged');
-    } else if (f.dataset.form === 'resolve') {
+    if (f.dataset.form === 'resolve') {
       save(store.updateRequest(r.id, {
         status: 'resolved', resolvedAt: localInputToIso(f.resolvedAt.value), resolution: clean(f.resolution.value, 1000),
       }));
-      toast('Resolved. One less thing to chase.');
+      toast('Marked as answered');
     } else if (f.dataset.form === 'edit') {
       const person = clean(f.person.value, 200);
       const subject = clean(f.subject.value, 500);
@@ -552,9 +517,7 @@ async function loadConfig() {
 async function boot() {
   bindEvents();
   applyTheme(document.documentElement.dataset.theme);
-  let tab = null;
-  try { tab = localStorage.getItem('tab'); } catch {}
-  showTab(tab === 'todos' ? 'todos' : 'waiting');
+  showTab('todos'); // To-do is the main screen; Waiting on is the reference log.
   renderClock();
 
   const demo = new URLSearchParams(location.search).has('demo');
@@ -585,7 +548,6 @@ async function boot() {
     unsubscribe = store.subscribe(
       (data) => {
         Object.assign(state, data);
-        $('#nudgeAfter').value = state.settings.nudgeAfterDays;
         if (state.settings.theme) applyTheme(state.settings.theme);
         if (firstLoad && state.requests.length) $('#addRequestCard').open = false;
         firstLoad = false;

@@ -3,14 +3,14 @@
 //  - localStore: this browser only, for trying the app out (?demo in the URL)
 //
 // Firestore layout (one private space per signed-in user):
-//   users/{uid}                 -> { settings: { nudgeAfterDays } }
+//   users/{uid}                 -> { settings: { theme } }
 //   users/{uid}/requests/{id}   -> a "waiting on" item
 //   users/{uid}/todos/{id}      -> a to-do
 
 const FIREBASE_VERSION = '10.14.1';
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 
-export const DEFAULT_SETTINGS = { nudgeAfterDays: 2 };
+export const DEFAULT_SETTINGS = {};
 
 const strip = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 

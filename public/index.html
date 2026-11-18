@@ -53,14 +53,31 @@
   <div id="screen-app" hidden>
   <header class="top">
     <nav class="tabs" role="tablist">
-      <button role="tab" class="tab" data-tab="waiting" aria-selected="true">Waiting on <span class="pill" id="waitingCount"></span></button>
-      <button role="tab" class="tab" data-tab="todos" aria-selected="false">To-do <span class="pill" id="todoCount"></span></button>
+      <button role="tab" class="tab" data-tab="todos" aria-selected="true">To-do <span class="pill" id="todoCount"></span></button>
+      <button role="tab" class="tab" data-tab="waiting" aria-selected="false">Waiting on <span class="pill" id="waitingCount"></span></button>
     </nav>
   </header>
 
   <main>
+    <!-- ================= TO-DO ================= -->
+    <section id="tab-todos" class="panel">
+      <form id="todoForm" class="card todo-add" autocomplete="off">
+        <input name="text" required placeholder="Add a to-do and press Enter…" aria-label="To-do">
+        <input name="due" type="date" aria-label="Due date" title="Due date (optional)">
+        <select name="priority" aria-label="Priority">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+        </select>
+        <button type="submit" class="primary">Add</button>
+      </form>
+      <div class="toolbar">
+        <input type="search" id="todoSearch" placeholder="Search to-dos…">
+      </div>
+      <div id="todoList"></div>
+    </section>
     <!-- ================= WAITING ON ================= -->
-    <section id="tab-waiting" class="panel">
+    <section id="tab-waiting" class="panel" hidden>
       <div class="summary" id="waitingSummary"></div>
 
       <details class="card add-card" id="addRequestCard" open>
@@ -106,37 +123,17 @@
 
       <div class="toolbar">
         <div class="seg" role="group" aria-label="Show">
-          <button data-filter="open" class="on">Open</button>
-          <button data-filter="resolved">Resolved</button>
+          <button data-filter="open" class="on">No reply</button>
+          <button data-filter="resolved">Answered</button>
           <button data-filter="all">All</button>
         </div>
         <input type="search" id="requestSearch" placeholder="Search person or topic…">
-        <label class="setting">Nudge after
-          <input type="number" id="nudgeAfter" min="0" max="60" step="0.5"> days of silence
-        </label>
       </div>
 
-      <div class="board-head" aria-hidden="true"><span>Status</span><span>From · Awaiting</span><span>Waited</span></div>
+      <div class="board-head" aria-hidden="true"><span>Status</span><span>Who · What I asked for</span><span>Waited</span></div>
       <div id="requestList" class="list"></div>
     </section>
 
-    <!-- ================= TO-DO ================= -->
-    <section id="tab-todos" class="panel" hidden>
-      <form id="todoForm" class="card todo-add" autocomplete="off">
-        <input name="text" required placeholder="Add a to-do and press Enter…" aria-label="To-do">
-        <input name="due" type="date" aria-label="Due date" title="Due date (optional)">
-        <select name="priority" aria-label="Priority">
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-          <option value="low">Low</option>
-        </select>
-        <button type="submit" class="primary">Add</button>
-      </form>
-      <div class="toolbar">
-        <input type="search" id="todoSearch" placeholder="Search to-dos…">
-      </div>
-      <div id="todoList"></div>
-    </section>
   </main>
 
   <footer class="foot">

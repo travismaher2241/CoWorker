@@ -2,8 +2,8 @@
 
 A small web app for two things:
 
-1. **Waiting on**: log the emails you send coworkers asking for something (who, what, when sent), see how long each has been waiting, log follow-ups, copy a ready-made nudge email, and mark items resolved when you get an answer. Overdue items (past their "need by" date) turn red; items with no reply for too long (2 days by default, adjustable) turn amber.
-2. **To-do**: a personal to-do list with due dates and priorities, grouped into Overdue, Today, Next 7 days, Later and No date.
+1. **To-do** (the main screen): a personal to-do list with due dates and priorities, grouped into Overdue, Today, Next 7 days, Later and No date.
+2. **Waiting on**: a reference log of what you've asked coworkers for (who, what, when sent) and how long each one has gone without a reply. Press **Got a response** when an answer comes in, and the app records how long it took. The summary shows how many requests you've sent, how many are still unanswered, and the average time to get an answer. Items past an optional "need by" date show as Overdue.
 
 There is no Outlook or email connection. To log an email quickly, **paste a screenshot of it** (or its text) and Gemini fills in who it went to, what you asked for, and when it was sent. You check the details and press Start tracking. All times are shown and entered in **Melbourne time** (Drouin), whatever time zone your device is set to.
 
@@ -88,9 +88,8 @@ Keep the service account file private, and delete the downloaded copy once it's 
 
 - **Paste a screenshot of the sent email**: in Outlook, open the email in Sent Items, take a screenshot (Windows: `Win+Shift+S`, Mac: `Cmd+Ctrl+Shift+4`), then click the app and press `Ctrl+V`/`Cmd+V`. On a phone, tap the dashed box and pick the screenshot. Gemini fills in the form and highlights what it filled. Check it and press **Start tracking**. You can also paste the email's text instead.
 - **Log an email you sent**: who, what you're waiting for, when you sent it (defaults to now), and optionally a date you need it by.
-- **Log follow-up** when you chase someone (email, Teams, call, in person). This resets the "no reply" clock but the total waiting time keeps counting from the first email.
-- **Copy nudge text** puts a polite follow-up on your clipboard to paste into Outlook.
-- **Got it ✓** marks it resolved. The summary at the top shows your average time to get an answer.
+- **Got a response ✓** marks it answered (you can change the time the answer came in). The summary at the top shows your average time to get an answer.
+- If you BCC the capture address on a chaser email, it's counted as a follow-up on the original item.
 - **History** shows the full timeline for an item.
 - **Download a backup** (bottom of the page) saves everything as a JSON file.
 
@@ -106,7 +105,7 @@ Keep the service account file private, and delete the downloaded copy once it's 
 | --- | --- |
 | `public/index.html`, `public/styles.css` | The page |
 | `public/app.js` | Screens and interactions |
-| `public/logic.js` | Rules for overdue / needs-a-nudge, and the nudge email text |
+| `public/logic.js` | Status rules (waiting / overdue / answered) |
 | `public/time.js` | Melbourne time-zone helpers |
 | `public/store.js` | Firestore (live) and browser-only (demo) storage |
 | `api/config.js` | Vercel function that hands the browser the Firebase settings |

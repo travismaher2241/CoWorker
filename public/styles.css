@@ -284,7 +284,6 @@ code { font-family: var(--f-mono); background: var(--tile); padding: 1px 5px; bo
 .req:nth-child(even) { background: var(--row-alt); }
 .req:hover { background: var(--row-hi); }
 .req.lvl-overdue { box-shadow: inset 4px 0 0 var(--red); }
-.req.lvl-nudge { box-shadow: inset 4px 0 0 var(--warn); }
 .req.lvl-resolved { opacity: .72; }
 
 .status {
@@ -293,12 +292,11 @@ code { font-family: var(--f-mono); background: var(--tile); padding: 1px 5px; bo
 }
 .lamp { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; box-shadow: 0 0 8px currentColor; }
 .st-overdue { color: var(--red); }
-.st-nudge { color: var(--warn); }
 .st-waiting { color: var(--blue); }
 .st-waiting .lamp { box-shadow: none; opacity: .7; }
 .st-resolved { color: var(--green); }
 @media (prefers-reduced-motion: no-preference) {
-  .st-overdue .lamp, .st-nudge .lamp { animation: blink 1.4s steps(1) infinite; }
+  .st-overdue .lamp { animation: blink 1.4s steps(1) infinite; }
 }
 @keyframes blink { 50% { opacity: .2; } }
 
@@ -308,12 +306,10 @@ code { font-family: var(--f-mono); background: var(--tile); padding: 1px 5px; bo
 .meta { margin-top: 6px; color: var(--dim); font: 400 12.5px/1.5 var(--f-mono); }
 .meta .reason { color: var(--ink); font-weight: 500; }
 .lvl-overdue .meta .reason { color: var(--red); }
-.lvl-nudge .meta .reason { color: var(--warn); }
 
 .req-wait { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .req-wait .flaps { font-size: 26px; }
 .lvl-overdue .req-wait .flap { color: var(--flap-bad); }
-.lvl-nudge .req-wait .flap { color: var(--flap-warn); }
 .lvl-resolved .req-wait .flap { color: var(--flap-ok); }
 .req-wait > span:not(.flaps) { font: 500 11px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
 

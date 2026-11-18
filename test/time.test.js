@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { localInputToIso, isoToLocalInput, todayLocal, duration, addDays, relativeDay } from '../public/time.js';
-import { requestStatus, lastContact, nudgeText } from '../public/logic.js';
+import { requestStatus, lastContact } from '../public/logic.js';
 
 test('Melbourne wall time converts to UTC in summer (AEDT, +11)', () => {
   assert.equal(localInputToIso('2026-11-18T09:16'), '2026-11-17T22:16:00.000Z');
@@ -38,33 +38,21 @@ test('date maths', () => {
 const NOW = Date.parse('2026-11-17T22:00:00Z'); // Wed 18 Nov, 9am Melbourne
 const base = { person: 'Sam Lee', subject: 'Q3 budget numbers', sentAt: '2026-11-17T21:00:00Z', followUps: [], status: 'open' };
 
-test('a fresh request is just waiting', () => {
-  assert.equal(requestStatus(base, 2, NOW).level, 'waiting');
+test('an unanswered request is waiting, however long it has been', () => {
+  assert.equal(requestStatus(base, NOW).level, 'waiting');
+  assert.equal(requestStatus({ ...base, sentAt: '2026-10-01T21:00:00Z' }, NOW).level, 'waiting');
 });
 
-test('silence past the nudge window needs a nudge', () => {
-  const r = { ...base, sentAt: '2026-11-14T21:00:00Z' };
-  assert.equal(requestStatus(r, 2, NOW).level, 'nudge');
-});
-
-test('a follow-up resets the nudge clock', () => {
+test('last contact counts follow-ups', () => {
   const r = { ...base, sentAt: '2026-11-10T21:00:00Z', followUps: [{ id: 'a', at: '2026-11-17T20:00:00Z', method: 'email' }] };
   assert.equal(lastContact(r), '2026-11-17T20:00:00Z');
-  assert.equal(requestStatus(r, 2, NOW).level, 'waiting');
 });
 
 test('past the need-by date is overdue', () => {
-  assert.equal(requestStatus({ ...base, needBy: '2026-11-17' }, 2, NOW).level, 'overdue');
-  assert.equal(requestStatus({ ...base, needBy: '2026-11-18' }, 2, NOW).level, 'nudge');
+  assert.equal(requestStatus({ ...base, needBy: '2026-11-17' }, NOW).level, 'overdue');
+  assert.equal(requestStatus({ ...base, needBy: '2026-11-18' }, NOW).level, 'waiting');
 });
 
-test('resolved wins over everything', () => {
-  assert.equal(requestStatus({ ...base, needBy: '2026-01-01', status: 'resolved' }, 2, NOW).level, 'resolved');
-});
-
-test('nudge text addresses the person by first name', () => {
-  const text = nudgeText({ ...base, needBy: '2026-11-20' });
-  assert.match(text, /^Hi Sam,/);
-  assert.match(text, /Wednesday 18 November/);
-  assert.match(text, /need this by Fri,? 20 Nov/);
+test('answered wins over everything', () => {
+  assert.equal(requestStatus({ ...base, needBy: '2026-01-01', status: 'resolved' }, NOW).level, 'resolved');
 });
