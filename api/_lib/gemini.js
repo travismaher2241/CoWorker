@@ -45,17 +45,30 @@ export class GeminiError extends Error {
 export async function readEmail(parts, { extraInstructions = '' } = {}) {
   if (!process.env.GEMINI_API_KEY) throw new GeminiError(503, 'Gemini isn\'t set up yet: add GEMINI_API_KEY in Vercel.');
   const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+  const call = (thinking) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+    signal: AbortSignal.timeout(25000),
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : '') }, ...parts] }],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: 'application/json',
+        responseSchema: SCHEMA,
+        // Extracting a few fields doesn't need "thinking", and it makes replies several times faster.
+        ...(thinking ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
+      },
+    }),
+  });
   let gem;
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : '') }, ...parts] }],
-        generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
-      }),
-    });
+    let r = await call(false);
     gem = await r.json();
+    if (r.status === 400 && /thinking/i.test(JSON.stringify(gem))) {
+      // Some models don't allow switching thinking off: ask again with the default.
+      r = await call(true);
+      gem = await r.json();
+    }
     if (!r.ok) {
       console.error('Gemini error', r.status, JSON.stringify(gem).slice(0, 500));
       throw new GeminiError(502, `Gemini couldn't read it (${gem.error?.status || r.status}).`);
@@ -63,7 +76,7 @@ export async function readEmail(parts, { extraInstructions = '' } = {}) {
   } catch (err) {
     if (err instanceof GeminiError) throw err;
     console.error(err);
-    throw new GeminiError(502, 'Couldn\'t reach Gemini. Try again in a moment.');
+    throw new GeminiError(502, err.name === 'TimeoutError' ? 'Gemini took too long. Try again.' : 'Couldn\'t reach Gemini. Try again in a moment.');
   }
   const text = gem.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
   try {

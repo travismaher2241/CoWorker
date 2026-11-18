@@ -104,6 +104,12 @@ function emailText(mail, c) {
 const nowIso = () => new Date().toISOString();
 
 export default async function handler(req, res) {
+  const started = Date.now();
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    console.log('Inbound result', { status: res.statusCode, ...body, ms: Date.now() - started });
+    return json(body);
+  };
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
   if (!authorized(req)) {
