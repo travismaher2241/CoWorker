@@ -7,6 +7,8 @@
 //     (or a follow-up, if you already have an open item for that email thread)
 //   - Forward an old sent email to the capture address -> an item dated when
 //     you originally sent it
+//   - Put "todo" in the subject (e.g. "todo: FW: Pricing", or email the capture
+//     address directly with "todo Call Sam") -> a to-do instead
 //
 // Env vars:
 //   INBOUND_SECRET            (required) password in the webhook URL
@@ -16,7 +18,7 @@
 //   FIREBASE_SERVICE_ACCOUNT  (required) service account JSON, to write to Firestore
 //   GEMINI_API_KEY            (recommended) to work out what you asked for and any deadline
 import crypto from 'node:crypto';
-import { readEmail } from './_lib/gemini.js';
+import { readEmail, readTodos } from './_lib/gemini.js';
 import { createDoc, updateDoc, findWhere } from './_lib/firestore.js';
 import { localInputToIso } from '../public/time.js';
 
@@ -49,6 +51,27 @@ export function threadKey(subject) {
     .trim()
     .toLowerCase()
     .slice(0, 300);
+}
+
+// "todo: FW: Pricing", "[TODO] Call Sam", "FW: Pricing - to-do" all count: "todo" has to be
+// at the start or the end, so an email about "the todo list review" isn't caught.
+export function isTodoSubject(subject) {
+  const s = String(subject || '').replace(/^\s*((re|fw|fwd|aw|wg)\s*(\[\d+\])?\s*:\s*)+/i, '');
+  return /^\s*[[(]?\s*to-?do([^a-z0-9]|$)/i.test(s) || /(^|[^a-z0-9])to-?do\s*[\])]?\s*$/i.test(s);
+}
+
+// "todo: FW: Pricing for Barriers Plus" -> "Pricing for Barriers Plus"
+export function todoTitle(subject) {
+  let s = String(subject || '');
+  let prev;
+  do {
+    prev = s;
+    s = s
+      .replace(/^\s*((re|fw|fwd|aw|wg)\s*(\[\d+\])?\s*:\s*)+/i, '')
+      .replace(/^\s*[[(]?\s*to-?do\s*[\])]?\s*[:\-–]?\s*/i, '')
+      .replace(/\s*[\-–:]?\s*[[(]?\s*to-?do\s*[\])]?\s*$/i, '');
+  } while (s !== prev);
+  return s.replace(/\s+/g, ' ').trim().slice(0, 500);
 }
 
 function htmlToText(html) {
@@ -138,6 +161,32 @@ export default async function handler(req, res) {
   const userPath = `users/${uid}`;
 
   try {
+    if (isTodoSubject(c.subject)) {
+      const fallback = todoTitle(c.subject);
+      let t = null;
+      try {
+        [t] = await readTodos([{ text: `EMAIL:\n${emailText(mail, c)}` }], {
+          extraInstructions: 'The user emailed this to their own to-do list. Return exactly ONE to-do that captures what they need to do about it. '
+            + `Their subject line, with the word "todo" removed, is: "${fallback}". If that already reads as an action, use it as the text.`,
+        });
+      } catch (err) {
+        console.warn('Gemini unavailable, using the subject line as the to-do:', err.message);
+      }
+      const created = await createDoc(`${userPath}/todos`, id, {
+        text: (t?.text || fallback || '(no subject)').slice(0, 500),
+        notes: (t?.notes || '').slice(0, 5000),
+        due: t?.due || null,
+        priority: t?.priority || 'normal',
+        done: false,
+        doneAt: null,
+        repeat: null,
+        blockedBy: null,
+        source: 'email',
+        createdAt: nowIso(),
+      });
+      return res.status(200).json({ result: created ? 'todo-created' : 'duplicate', item: id });
+    }
+
     if (!c.forwarded) {
       // BCC'd on a new email, or on a reply in a thread we're already tracking.
       const key = threadKey(c.subject);

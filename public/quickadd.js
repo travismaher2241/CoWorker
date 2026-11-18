@@ -3,7 +3,7 @@
 const MAX_SIDE = 2000;
 
 // Shrink big screenshots so uploads are quick and stay under Vercel's size limit.
-async function toDataUrl(file) {
+export async function toDataUrl(file) {
   try {
     const bmp = await createImageBitmap(file);
     const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));

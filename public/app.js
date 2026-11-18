@@ -2,9 +2,10 @@ import {
   isoToLocalInput, localInputToIso, todayLocal, addDays,
   showDateTime, showDate, showClock, localHM, localDayLine, duration, relativeDay,
 } from './time.js';
-import { lastContact, requestStatus, PRIORITIES } from './logic.js';
+import { lastContact, requestStatus, peopleStats, nextDue, REPEATS, PRIORITIES } from './logic.js';
 import { firebaseStore, localStore, DEFAULT_SETTINGS } from './store.js';
 import { setupQuickAdd } from './quickadd.js';
+import { setupNotes } from './notes.js';
 
 let store;
 let quick;
@@ -101,6 +102,32 @@ function renderSummary() {
   $('#waitingCount').className = 'pill' + (overdue ? ' hot' : '');
 }
 
+function renderPeopleTable() {
+  const rows = peopleStats(state.requests);
+  $('#peopleCard').hidden = !rows.length;
+  if (!rows.length) return;
+  $('#peopleTable').innerHTML = `
+    <div class="table-wrap">
+    <table class="people">
+      <thead><tr>
+        <th>Person</th><th class="num">Asked</th><th class="num">Answered</th><th class="num">No reply</th>
+        <th class="num">Avg time to answer</th><th class="num">Longest unanswered</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((p) => `
+          <tr class="${p.open ? 'has-open' : ''}">
+            <td><button class="link person-link" data-person="${esc(p.person)}" title="Show ${esc(p.person)}'s requests">${esc(p.person)}</button></td>
+            <td class="num">${p.asked}</td>
+            <td class="num">${p.answered}</td>
+            <td class="num ${p.open ? 'bad' : ''}">${p.open}</td>
+            <td class="num">${p.avgMs === null ? '–' : esc(duration(p.avgMs))}</td>
+            <td class="num ${p.open ? 'bad' : ''}">${p.open ? esc(duration(p.longestOpenMs)) : '–'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
 function renderPeople() {
   const people = [...new Set(state.requests.map((r) => r.person))].sort((a, b) => a.localeCompare(b));
   $('#peopleList').innerHTML = people.map((p) => `<option value="${esc(p)}">`).join('');
@@ -112,6 +139,7 @@ function requestCard({ r, s }) {
   const form = state.openForm?.id === r.id ? state.openForm.kind : null;
   const nudges = r.followUps.length;
   const nowLocal = isoToLocalInput(nowIso());
+  const holding = state.todos.filter((t) => !t.done && t.blockedBy === r.id);
 
   const timeline = [
     { at: r.sentAt, label: 'Original email sent', note: r.details },
@@ -136,6 +164,7 @@ function requestCard({ r, s }) {
         ${nudges ? ` · followed up ${nudges} time${nudges > 1 ? 's' : ''}, last ${esc(showDateTime(lastContact(r)))}` : ''}
         ${r.needBy && r.status === 'open' ? ` · need by ${esc(showDate(r.needBy))}` : ''}
       </div>
+      ${holding.length && r.status === 'open' ? `<div class="holding">Holding up ${holding.length > 1 ? `${holding.length} of my to-dos` : 'my to-do'}: ${holding.map((t) => esc(t.text)).join(' · ')}</div>` : ''}
     </div>
     <div class="req-wait">
       ${flap(duration(waitedMs).replace('just now', 'now'))}
@@ -179,6 +208,7 @@ function requestCard({ r, s }) {
 
 function renderRequests() {
   renderSummary();
+  renderPeopleTable();
   renderPeople();
   const items = sortedRequests();
   if (!items.length) {
@@ -196,7 +226,11 @@ function renderRequests() {
 function todoRow(t) {
   const today = todayLocal();
   const overdue = !t.done && t.due && t.due < today;
+  const blocker = t.blockedBy ? state.requests.find((r) => r.id === t.blockedBy) : null;
   if (state.openForm?.id === t.id && state.openForm.kind === 'todo-edit') {
+    const choices = state.requests
+      .filter((r) => r.status === 'open' || r.id === t.blockedBy)
+      .sort((a, b) => a.person.localeCompare(b.person));
     return `
     <li class="todo editing" data-id="${t.id}">
       <form class="inline-form" data-form="todo-edit">
@@ -205,6 +239,18 @@ function todoRow(t) {
         <label>Priority
           <select name="priority">
             ${PRIORITIES.map((p) => `<option value="${p}" ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+          </select>
+        </label>
+        <label>Repeat
+          <select name="repeat">
+            <option value="">Doesn't repeat</option>
+            ${Object.entries(REPEATS).map(([k, v]) => `<option value="${k}" ${t.repeat === k ? 'selected' : ''}>${v}</option>`).join('')}
+          </select>
+        </label>
+        <label class="grow">Can't do it until I hear back from
+          <select name="blockedBy">
+            <option value="">Not waiting on anyone</option>
+            ${choices.map((r) => `<option value="${r.id}" ${t.blockedBy === r.id ? 'selected' : ''}>${esc(r.person)}: ${esc(r.subject)}</option>`).join('')}
           </select>
         </label>
         <label class="full">Notes <textarea name="notes" rows="2">${esc(t.notes)}</textarea></label>
@@ -218,6 +264,13 @@ function todoRow(t) {
     <div class="todo-body">
       <span class="todo-text">${t.priority === 'high' ? '<span class="flag" title="High priority">!</span>' : ''}${esc(t.text)}</span>
       ${t.notes ? `<span class="todo-notes">${esc(t.notes)}</span>` : ''}
+      ${(t.repeat && REPEATS[t.repeat]) || blocker || t.source === 'email' ? `<span class="todo-tags">
+        ${t.repeat && REPEATS[t.repeat] ? `<span class="tag t-repeat" title="Comes back when you tick it off">↻ ${REPEATS[t.repeat]}</span>` : ''}
+        ${blocker && !t.done ? (blocker.status === 'resolved'
+          ? `<button class="tag t-unblocked" data-act="goto-request" data-rid="${blocker.id}">✓ ${esc(blocker.person)} replied: good to go</button>`
+          : `<button class="tag t-blocked" data-act="goto-request" data-rid="${blocker.id}" title="${esc(blocker.subject)}">⏳ Waiting on ${esc(blocker.person)} · ${esc(duration(Date.now() - Date.parse(blocker.sentAt)))}</button>`) : ''}
+        ${t.source === 'email' ? '<span class="tag">From email</span>' : ''}
+      </span>` : ''}
     </div>
     ${t.due ? `<span class="due ${overdue ? 'bad' : t.due === today ? 'warn' : ''}">${esc(showDate(t.due))}${t.done ? '' : ` · ${relativeDay(t.due, today)}`}</span>` : ''}
     <button data-act="todo-edit" class="link">Edit</button>
@@ -304,6 +357,26 @@ function bindEvents() {
     form: $('#requestForm'),
     getToken: () => store.getIdToken(),
     toast,
+  });
+
+  setupNotes({
+    getToken: () => store.getIdToken(),
+    toast,
+    addTodos: (list) => list.forEach((t) => save(store.addTodo({
+      text: t.text, notes: t.notes || '', due: t.due || null,
+      priority: PRIORITIES.includes(t.priority) ? t.priority : 'normal',
+      repeat: null, blockedBy: null, done: false, doneAt: null, createdAt: nowIso(),
+    }))),
+  });
+
+  $('#peopleTable').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-person]');
+    if (!btn) return;
+    state.search = btn.dataset.person;
+    $('#requestSearch').value = btn.dataset.person;
+    setFilter('all');
+    renderRequests();
+    $('#requestSearch').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   $('#requestForm').addEventListener('submit', (e) => {
@@ -393,9 +466,11 @@ function bindEvents() {
     save(store.addTodo({
       text, notes: '', due: f.due.value || null,
       priority: PRIORITIES.includes(f.priority.value) ? f.priority.value : 'normal',
+      repeat: REPEATS[f.repeat.value] ? f.repeat.value : null, blockedBy: null,
       done: false, doneAt: null, createdAt: nowIso(),
     }));
     f.text.value = '';
+    f.repeat.value = '';
     f.text.focus();
   });
 
@@ -405,7 +480,18 @@ function bindEvents() {
     if (e.target.dataset.act !== 'check') return;
     const id = e.target.closest('[data-id]').dataset.id;
     const done = e.target.checked;
+    const t = state.todos.find((x) => x.id === id);
     save(store.updateTodo(id, { done, doneAt: done ? nowIso() : null }));
+    if (done && t && REPEATS[t.repeat] && !t.repeatedAs) {
+      // A repeating to-do: tick this one off and put the next one on the list.
+      const due = nextDue(t.due, t.repeat, todayLocal());
+      save(store.addTodo({
+        text: t.text, notes: t.notes || '', due, priority: t.priority, repeat: t.repeat, blockedBy: null,
+        done: false, doneAt: null, createdAt: nowIso(),
+      }));
+      save(store.updateTodo(id, { repeatedAs: due }));
+      toast(`Done. Next one is due ${showDate(due)}.`);
+    }
   });
 
   $('#todoList').addEventListener('click', (e) => {
@@ -415,6 +501,16 @@ function bindEvents() {
     if (act === 'clear-done') {
       const ids = state.todos.filter((t) => t.done).map((t) => t.id);
       if (confirm(`Remove ${ids.length} completed to-do${ids.length > 1 ? 's' : ''}?`)) save(store.deleteTodos(ids));
+      return;
+    }
+    if (act === 'goto-request') {
+      const r = state.requests.find((x) => x.id === btn.dataset.rid);
+      if (!r) return;
+      setFilter(r.status === 'resolved' ? 'resolved' : 'open');
+      state.search = r.person;
+      $('#requestSearch').value = r.person;
+      showTab('waiting');
+      renderRequests();
       return;
     }
     const id = btn.closest('[data-id]').dataset.id;
@@ -439,6 +535,8 @@ function bindEvents() {
       text, due: f.due.value || null,
       priority: PRIORITIES.includes(f.priority.value) ? f.priority.value : 'normal',
       notes: clean(f.notes.value, 5000),
+      repeat: REPEATS[f.repeat.value] ? f.repeat.value : null,
+      blockedBy: f.blockedBy.value || null,
     }));
     closeForm();
   });

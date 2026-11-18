@@ -11,6 +11,9 @@
     },
     "api/extract.js": {
       "maxDuration": 60
+    },
+    "api/todos.js": {
+      "maxDuration": 60
     }
   }
 }

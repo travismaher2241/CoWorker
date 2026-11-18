@@ -2,8 +2,8 @@
 
 A small web app for two things:
 
-1. **To-do** (the main screen): a personal to-do list with due dates and priorities, grouped into Overdue, Today, Next 7 days, Later and No date.
-2. **Waiting on**: a reference log of what you've asked coworkers for (who, what, when sent) and how long each one has gone without a reply. Press **Got a response** when an answer comes in, and the app records how long it took. The summary shows how many requests you've sent, how many are still unanswered, and the average time to get an answer. Items past an optional "need by" date show as Overdue.
+1. **To-do** (the main screen): a personal to-do list with due dates and priorities, grouped into Overdue, Today, Next 7 days, Later and No date. To-dos can repeat (every day, weekday, week, fortnight or month), and can be marked as waiting on a reply from someone in the Waiting on list. You can also paste meeting notes or a screenshot and have Gemini pick out the to-dos.
+2. **Waiting on**: a reference log of what you've asked coworkers for (who, what, when sent) and how long each one has gone without a reply. Press **Got a response** when an answer comes in, and the app records how long it took. The summary shows how many requests you've sent, how many are still unanswered, and the average time to get an answer. Items past an optional "need by" date show as Overdue. **Reply times by person** shows each coworker's requests, answers, average time to answer, and longest unanswered wait.
 
 There is no Outlook or email connection. To log an email quickly, **paste a screenshot of it** (or its text) and Gemini fills in who it went to, what you asked for, and when it was sent. You check the details and press Start tracking. All times are shown and entered in **Melbourne time** (Drouin), whatever time zone your device is set to.
 
@@ -60,6 +60,8 @@ Set this up and you never type or screenshot again:
 - **New emails:** add the capture address as **BCC** when you send. The item appears in the app with the real recipients and sent time. If you BCC it again on a reply in the same thread, that's logged as a follow-up instead of a new item.
 - **Old emails you're still waiting on:** find them in Sent Items and **forward** them to the capture address. Gemini reads the original email, so the item is dated when you first sent it.
 
+- **To-dos by email:** put "todo" at the start or end of the subject (e.g. forward an email as `todo: FW: Pricing`, or email the capture address directly with `todo Call Sam about freight`). It becomes a to-do instead, and Gemini words it as an action and picks up any due date.
+
 Items that arrive this way show an **Added from email** tag. Press **Looks right** (or Edit) once you've checked them.
 
 > Check that your workplace allows BCC'ing or forwarding work email to an outside address before you use this.
@@ -88,6 +90,9 @@ Keep the service account file private, and delete the downloaded copy once it's 
 
 - **Paste a screenshot of the sent email**: in Outlook, open the email in Sent Items, take a screenshot (Windows: `Win+Shift+S`, Mac: `Cmd+Ctrl+Shift+4`), then click the app and press `Ctrl+V`/`Cmd+V`. On a phone, tap the dashed box and pick the screenshot. Gemini fills in the form and highlights what it filled. Check it and press **Start tracking**. You can also paste the email's text instead.
 - **Log an email you sent**: who, what you're waiting for, when you sent it (defaults to now), and optionally a date you need it by.
+- **Turn notes into to-dos** (To-do tab): paste meeting notes, or press Ctrl+V with a screenshot on the To-do tab. Untick any suggestions you don't want, then press **Add ticked to-dos**.
+- **Repeating to-dos**: pick a repeat when adding, or in Edit. Ticking one off puts the next one on the list.
+- **Can't do it until I hear back**: in a to-do's Edit, pick the waiting-on item it depends on. The to-do shows who you're waiting on and for how long, and turns green once they reply. The waiting-on item shows which to-dos it's holding up.
 - **Got a response ✓** marks it answered (you can change the time the answer came in). The summary at the top shows your average time to get an answer.
 - If you BCC the capture address on a chaser email, it's counted as a follow-up on the original item.
 - **History** shows the full timeline for an item.
@@ -112,6 +117,8 @@ Keep the service account file private, and delete the downloaded copy once it's 
 | `api/inbound.js` | Webhook for the BCC / forward capture address (Postmark inbound) |
 | `api/_lib/` | Shared Gemini and Firestore (REST, service account) helpers |
 | `api/extract.js` | Vercel function that sends a screenshot or email text to Gemini (key stays server-side) |
+| `api/todos.js` | Vercel function that turns notes or a screenshot into suggested to-dos with Gemini |
+| `public/notes.js` | The "Turn notes into to-dos" panel |
 | `public/quickadd.js` | Paste / drop / pick a screenshot and fill the form |
 | `firestore.rules` | Firestore security rules |
 | `test/` | Tests |

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { localInputToIso, isoToLocalInput, todayLocal, duration, addDays, relativeDay } from '../public/time.js';
-import { requestStatus, lastContact } from '../public/logic.js';
+import { requestStatus, lastContact, peopleStats, splitPeople, nextDue } from '../public/logic.js';
 
 test('Melbourne wall time converts to UTC in summer (AEDT, +11)', () => {
   assert.equal(localInputToIso('2026-11-18T09:16'), '2026-11-17T22:16:00.000Z');
@@ -55,4 +55,29 @@ test('past the need-by date is overdue', () => {
 
 test('answered wins over everything', () => {
   assert.equal(requestStatus({ ...base, needBy: '2026-01-01', status: 'resolved' }, NOW).level, 'resolved');
+});
+
+test('reply times are grouped by person, splitting group emails', () => {
+  const rs = [
+    { person: 'Sam Lee', sentAt: '2026-11-10T00:00:00Z', status: 'resolved', resolvedAt: '2026-11-12T00:00:00Z' },
+    { person: 'Sam Lee, Priya Shah', sentAt: '2026-11-15T00:00:00Z', status: 'open' },
+    { person: 'priya shah', sentAt: '2026-11-01T00:00:00Z', status: 'resolved', resolvedAt: '2026-11-11T00:00:00Z' },
+  ];
+  const stats = peopleStats(rs, Date.parse('2026-11-18T00:00:00Z'));
+  const sam = stats.find((s) => s.person === 'Sam Lee');
+  const priya = stats.find((s) => s.person.toLowerCase() === 'priya shah');
+  assert.deepEqual([sam.asked, sam.answered, sam.open], [2, 1, 1]);
+  assert.equal(sam.avgMs, 2 * 86400000);
+  assert.equal(sam.longestOpenMs, 3 * 86400000);
+  assert.equal(priya.avgMs, 10 * 86400000);
+  assert.deepEqual(splitPeople('Sam Lee and Jo Wu; Ann'), ['Sam Lee', 'Jo Wu', 'Ann']);
+});
+
+test('repeating to-dos roll forward to the next date after today', () => {
+  assert.equal(nextDue('2026-11-18', 'weekly', '2026-11-18'), '2026-11-25');
+  assert.equal(nextDue('2026-11-01', 'weekly', '2026-11-18'), '2026-11-22'); // late: skip past today
+  assert.equal(nextDue('2026-11-20', 'weekdays', '2026-11-18'), '2026-11-23'); // Fri -> Mon
+  assert.equal(nextDue('2026-01-31', 'monthly', '2026-01-31'), '2026-02-28');
+  assert.equal(nextDue(null, 'daily', '2026-11-18'), '2026-11-19');
+  assert.equal(nextDue('2026-11-18', null, '2026-11-18'), null);
 });

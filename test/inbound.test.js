@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import handler, { threadKey, classify } from '../api/inbound.js';
+import handler, { threadKey, classify, isTodoSubject, todoTitle } from '../api/inbound.js';
 import { toFields, fromFields, _resetTokenCache } from '../api/_lib/firestore.js';
 
 const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -181,4 +181,35 @@ test('a forward still gets tracked when every Gemini model is overloaded', async
   assert.equal(item.sentAt, '2026-10-14T21:23:00.000Z');
   assert.equal(item.subject, 'Contact details');
   assert.deepEqual(tried, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash']);
+});
+
+test('"todo" at the start or end of the subject makes a to-do', () => {
+  assert.equal(isTodoSubject('todo: FW: Pricing'), true);
+  assert.equal(isTodoSubject('FW: [TODO] Call Sam'), true);
+  assert.equal(isTodoSubject('FW: Pricing - to-do'), true);
+  assert.equal(isTodoSubject('Pricing for the depot'), false);
+  assert.equal(todoTitle('todo: FW: Pricing for Barriers Plus'), 'Pricing for Barriers Plus');
+  assert.equal(todoTitle('FW: Pricing - todo'), 'Pricing');
+});
+
+test('emailing a "todo" subject creates a to-do, not a waiting-on item', async () => {
+  gemini = { todos: [{ text: 'Send Barriers Plus the updated pricing', due: '2026-11-20', priority: 'high', notes: 'From Priya' }] };
+  const res = await post(bccMail({ ToFull: [{ Email: CAPTURE }], Subject: 'todo: FW: Pricing', MessageID: 'msg-t' }));
+  assert.equal(res.body.result, 'todo-created');
+  const [path, t] = Object.entries(docs)[0];
+  assert.match(path, /^users\/u1\/todos\//);
+  assert.equal(t.text, 'Send Barriers Plus the updated pricing');
+  assert.equal(t.due, '2026-11-20');
+  assert.equal(t.priority, 'high');
+  assert.equal(t.done, false);
+});
+
+test('a "todo" email still becomes a to-do when Gemini is down', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => (url.includes('generativelanguage')
+    ? { ok: false, status: 400, json: async () => ({ error: { status: 'INVALID_ARGUMENT' } }) }
+    : realFetch(url, opts));
+  const res = await post(bccMail({ ToFull: [{ Email: CAPTURE }], Subject: 'todo Call Sam about freight', MessageID: 'msg-t2' }));
+  assert.equal(res.body.result, 'todo-created');
+  assert.equal(Object.values(docs)[0].text, 'Call Sam about freight');
 });

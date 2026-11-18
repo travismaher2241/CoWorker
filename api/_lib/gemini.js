@@ -1,4 +1,4 @@
-// Shared Gemini helper: turns an email (screenshot or text) into tracker fields.
+// Shared Gemini helpers: turn an email into tracker fields, or notes into to-dos.
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -41,7 +41,6 @@ export class GeminiError extends Error {
   }
 }
 
-// parts: Gemini content parts AFTER the prompt (an inline image or text).
 const RETRYABLE = new Set([429, 500, 503, 504]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,16 +51,17 @@ export function modelChain() {
   return [...new Set([...preferred, 'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash'])];
 }
 
-// parts: Gemini content parts AFTER the prompt (an inline image or text).
-export async function readEmail(parts, { extraInstructions = '', deadlineMs = 40000 } = {}) {
+// Sends a prompt plus content parts to Gemini and returns the parsed JSON answer.
+// Tries each model in modelChain() until one answers, within deadlineMs overall.
+export async function askGemini({ prompt, parts, schema, deadlineMs = 40000 }) {
   if (!process.env.GEMINI_API_KEY) throw new GeminiError(503, 'Gemini isn\'t set up yet: add GEMINI_API_KEY in Vercel.');
   const started = Date.now();
   const body = (thinking) => JSON.stringify({
-    contents: [{ role: 'user', parts: [{ text: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : '') }, ...parts] }],
+    contents: [{ role: 'user', parts: [{ text: prompt }, ...parts] }],
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
-      responseSchema: SCHEMA,
+      responseSchema: schema,
       // Extracting a few fields doesn't need "thinking", and it makes replies several times faster.
       ...(thinking ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
     },
@@ -88,7 +88,7 @@ export async function readEmail(parts, { extraInstructions = '', deadlineMs = 40
       if (r.ok) {
         const text = gem.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
         try {
-          return cleanResult(JSON.parse(text));
+          return JSON.parse(text);
         } catch {
           lastError = 'unreadable answer';
           continue;
@@ -104,6 +104,61 @@ export async function readEmail(parts, { extraInstructions = '', deadlineMs = 40
     await sleep(300);
   }
   throw new GeminiError(502, `Gemini couldn't read it right now (${lastError}). Try again in a minute.`);
+}
+
+// parts: Gemini content parts AFTER the prompt (an inline image or text).
+export async function readEmail(parts, { extraInstructions = '', deadlineMs = 40000 } = {}) {
+  const out = await askGemini({
+    prompt: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : ''),
+    parts, schema: SCHEMA, deadlineMs,
+  });
+  return cleanResult(out);
+}
+
+const TODO_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    todos: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          text: { type: 'STRING', description: 'The action, starting with a verb, max ~12 words, e.g. "Send Sam the Q3 pricing file".' },
+          due: { type: 'STRING', nullable: true, description: 'Due date as "YYYY-MM-DD" if one is stated or clearly implied, else null.' },
+          priority: { type: 'STRING', enum: ['high', 'normal', 'low'] },
+          notes: { type: 'STRING', description: 'Short helpful context (who asked, numbers, links). Empty string if none.' },
+        },
+        required: ['text', 'due', 'priority', 'notes'],
+      },
+    },
+  },
+  required: ['todos'],
+};
+
+export function todoPrompt(extra = '') {
+  return `You turn someone's work notes into a to-do list for THEM (the user).
+The input is meeting notes, a list, a whiteboard photo, a screenshot, or an email.
+It is now ${localNow()} in Melbourne, Victoria, Australia (the user is in Drouin). Resolve relative dates ("Friday", "next week", "EOM") to real dates. Australian dates are day/month/year.
+Return only actions the user needs to do (skip things other people agreed to do, and skip background information).
+Merge duplicates. Mark something high priority only if the notes say it's urgent or important. If there are no actions, return an empty list.${extra ? `\n${extra}` : ''}`;
+}
+
+export async function readTodos(parts, { extraInstructions = '', deadlineMs = 40000 } = {}) {
+  const out = await askGemini({ prompt: todoPrompt(extraInstructions), parts, schema: TODO_SCHEMA, deadlineMs });
+  return cleanTodos(out);
+}
+
+export function cleanTodos(out) {
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  return (Array.isArray(out?.todos) ? out.todos : [])
+    .map((t) => ({
+      text: str(t.text, 500),
+      due: /^\d{4}-\d{2}-\d{2}$/.test(t.due || '') ? t.due : null,
+      priority: ['high', 'normal', 'low'].includes(t.priority) ? t.priority : 'normal',
+      notes: str(t.notes, 2000),
+    }))
+    .filter((t) => t.text)
+    .slice(0, 50);
 }
 
 export function cleanResult(out) {
