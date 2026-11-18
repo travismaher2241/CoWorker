@@ -154,3 +154,31 @@ test('the service-account token request is a signed JWT', async () => {
   assert.ok(ok);
   assert.equal(JSON.parse(Buffer.from(p, 'base64url')).iss, SA.client_email);
 });
+
+test('reads Outlook forward headers without Gemini', async () => {
+  const { parseForwardHeaders } = await import('../api/inbound.js');
+  assert.deepEqual(
+    parseForwardHeaders('From: Travis Maher\nSent: Thursday, 15 October 2026 8:23 PM\nTo: Alan Berryman <a@x.com>; Sue Ng <s@x.com>\nSubject: Contact details'),
+    { to: 'Alan Berryman, Sue Ng', subject: 'Contact details', sentAt: '2026-10-15T20:23' },
+  );
+  assert.equal(parseForwardHeaders('Sent: Thursday, October 15, 2026 12:05 AM').sentAt, '2026-10-15T00:05');
+});
+
+test('a forward still gets tracked when every Gemini model is overloaded', async () => {
+  const tried = [];
+  globalThis.fetch = ((orig) => async (url, opts) => {
+    if (!url.includes('generativelanguage')) return orig(url, opts);
+    tried.push(url.split('/models/')[1].split(':')[0]);
+    return { ok: false, status: 503, json: async () => ({ error: { status: 'UNAVAILABLE' } }) };
+  })(globalThis.fetch);
+  const res = await post(bccMail({
+    ToFull: [{ Email: CAPTURE }], Subject: 'Fw: Contact details', MessageID: 'msg-fw',
+    TextBody: 'From: Travis Maher\nSent: Thursday, 15 October 2026 8:23 AM\nTo: Alan Berryman <aberryman@plasgain.com.au>\nSubject: Contact details\n\nHi Alan',
+  }));
+  assert.equal(res.body.result, 'created');
+  const item = Object.values(docs)[0];
+  assert.equal(item.person, 'Alan Berryman');
+  assert.equal(item.sentAt, '2026-10-14T21:23:00.000Z');
+  assert.equal(item.subject, 'Contact details');
+  assert.deepEqual(tried, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash']);
+});

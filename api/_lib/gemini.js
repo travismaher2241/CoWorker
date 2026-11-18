@@ -42,48 +42,68 @@ export class GeminiError extends Error {
 }
 
 // parts: Gemini content parts AFTER the prompt (an inline image or text).
-export async function readEmail(parts, { extraInstructions = '' } = {}) {
+const RETRYABLE = new Set([429, 500, 503, 504]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Models to try in order. Gemini's busiest model is sometimes "overloaded"; the
+// next one usually isn't. GEMINI_MODEL (if set) goes first.
+export function modelChain() {
+  const preferred = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : [];
+  return [...new Set([...preferred, 'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash'])];
+}
+
+// parts: Gemini content parts AFTER the prompt (an inline image or text).
+export async function readEmail(parts, { extraInstructions = '', deadlineMs = 40000 } = {}) {
   if (!process.env.GEMINI_API_KEY) throw new GeminiError(503, 'Gemini isn\'t set up yet: add GEMINI_API_KEY in Vercel.');
-  const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-  const call = (thinking) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-    signal: AbortSignal.timeout(25000),
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : '') }, ...parts] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: 'application/json',
-        responseSchema: SCHEMA,
-        // Extracting a few fields doesn't need "thinking", and it makes replies several times faster.
-        ...(thinking ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
-      },
-    }),
+  const started = Date.now();
+  const body = (thinking) => JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: basePrompt() + (extraInstructions ? `\n${extraInstructions}` : '') }, ...parts] }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+      responseSchema: SCHEMA,
+      // Extracting a few fields doesn't need "thinking", and it makes replies several times faster.
+      ...(thinking ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
+    },
   });
-  let gem;
-  try {
-    let r = await call(false);
-    gem = await r.json();
-    if (r.status === 400 && /thinking/i.test(JSON.stringify(gem))) {
-      // Some models don't allow switching thinking off: ask again with the default.
-      r = await call(true);
-      gem = await r.json();
+
+  let lastError = 'unknown';
+  for (const model of modelChain()) {
+    const left = deadlineMs - (Date.now() - started);
+    if (left < 3000) break;
+    try {
+      const call = (thinking) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        signal: AbortSignal.timeout(Math.min(15000, left)),
+        body: body(thinking),
+      });
+      let r = await call(false);
+      let gem = await r.json();
+      if (r.status === 400 && /thinking/i.test(JSON.stringify(gem))) {
+        // Some models don't allow switching thinking off: ask again with the default.
+        r = await call(true);
+        gem = await r.json();
+      }
+      if (r.ok) {
+        const text = gem.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+        try {
+          return cleanResult(JSON.parse(text));
+        } catch {
+          lastError = 'unreadable answer';
+          continue;
+        }
+      }
+      lastError = gem.error?.status || String(r.status);
+      console.warn(`Gemini ${model} failed`, r.status, JSON.stringify(gem).slice(0, 300));
+      if (!RETRYABLE.has(r.status) && r.status !== 404) break; // e.g. bad key: other models won't help
+    } catch (err) {
+      lastError = err.name === 'TimeoutError' ? 'too slow' : 'network error';
+      console.warn(`Gemini ${model} ${lastError}`);
     }
-    if (!r.ok) {
-      console.error('Gemini error', r.status, JSON.stringify(gem).slice(0, 500));
-      throw new GeminiError(502, `Gemini couldn't read it (${gem.error?.status || r.status}).`);
-    }
-  } catch (err) {
-    if (err instanceof GeminiError) throw err;
-    console.error(err);
-    throw new GeminiError(502, err.name === 'TimeoutError' ? 'Gemini took too long. Try again.' : 'Couldn\'t reach Gemini. Try again in a moment.');
+    await sleep(300);
   }
-  const text = gem.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-  try {
-    return cleanResult(JSON.parse(text));
-  } catch {
-    throw new GeminiError(502, 'Gemini gave an answer I couldn\'t understand. Try again.');
-  }
+  throw new GeminiError(502, `Gemini couldn't read it right now (${lastError}). Try again in a minute.`);
 }
 
 export function cleanResult(out) {

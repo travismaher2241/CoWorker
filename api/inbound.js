@@ -173,11 +173,26 @@ export default async function handler(req, res) {
     }
 
     // Forwarded an older email to the capture address: use the ORIGINAL email's details.
-    const ai = await readEmail([{ text: `EMAIL:\n${emailText(mail, c)}` }], {
-      extraInstructions: 'IMPORTANT: the user FORWARDED this to their own tracking address. Ignore the forward itself: '
-        + 'use the recipients, subject and sent date of the ORIGINAL email they sent, which appears inside the forwarded message. '
-        + 'If several emails are quoted, use the most recent one the user sent.',
-    });
+    let ai;
+    try {
+      ai = await readEmail([{ text: `EMAIL:\n${emailText(mail, c)}` }], {
+        extraInstructions: 'IMPORTANT: the user FORWARDED this to their own tracking address. Ignore the forward itself: '
+          + 'use the recipients, subject and sent date of the ORIGINAL email they sent, which appears inside the forwarded message. '
+          + 'If several emails are quoted, use the most recent one the user sent.',
+      });
+    } catch (err) {
+      // Gemini is down: read the forwarded header block ourselves so the email isn't lost.
+      console.warn('Gemini unavailable, reading the forwarded headers directly:', err.message);
+      const h = parseForwardHeaders(c.body);
+      ai = {
+        person: h.to || '',
+        subject: h.subject || threadKey(c.subject),
+        details: h.subject ? `Email subject: ${h.subject}` : '',
+        sentAt: h.sentAt,
+        needBy: null,
+        emailSubject: h.subject,
+      };
+    }
     const original = ai.emailSubject || c.subject;
     const key = threadKey(original);
     const open = key ? await findWhere(userPath, 'requests', { emailKey: key, status: 'open' }) : [];
@@ -197,6 +212,38 @@ export default async function handler(req, res) {
     // 500 so the mail service retries later (e.g. Gemini or Firestore hiccup).
     return res.status(500).json({ error: err.message });
   }
+}
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+// Reads the "From / Sent / To / Subject" block Outlook and Gmail put at the top of a forward.
+// Returns sentAt as Sydney local "YYYY-MM-DDTHH:MM" (or null).
+export function parseForwardHeaders(body) {
+  const text = String(body || '');
+  const field = (names) => {
+    const m = new RegExp(`^\\s*\\*?(?:${names})\\*?:\\s*(.+)$`, 'im').exec(text);
+    return m ? m[1].trim() : '';
+  };
+  const to = field('To').replace(/<[^>]*>/g, '').replace(/\s*;\s*/g, ', ').replace(/\s+,/g, ',').trim();
+  const subject = field('Subject');
+  const sent = field('Sent|Date');
+  let sentAt = null;
+  // "Thursday, 15 October 2026 8:23 AM"  or  "Thursday, October 15, 2026 8:23 AM"  or  "Thu, 15 Oct 2026 at 08:23"
+  const m = /(?:(\d{1,2})\s+([A-Za-z]+)|([A-Za-z]+)\s+(\d{1,2}),?)\s+(\d{4})(?:,|\s+at)?\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/.exec(sent);
+  if (m) {
+    const day = Number(m[1] || m[4]);
+    const monthName = (m[2] || m[3]).toLowerCase();
+    const month = MONTHS.findIndex((n) => n.startsWith(monthName.slice(0, 3))) + 1;
+    let hour = Number(m[6]);
+    const ampm = (m[8] || '').toLowerCase();
+    if (ampm === 'pm' && hour < 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+    if (month > 0) {
+      const pad = (n) => String(n).padStart(2, '0');
+      sentAt = `${m[5]}-${pad(month)}-${pad(day)}T${pad(hour)}:${m[7]}`;
+    }
+  }
+  return { to, subject, sentAt };
 }
 
 function newItem({ person, subject, details, sentAt, needBy, emailKey, emailId }) {
