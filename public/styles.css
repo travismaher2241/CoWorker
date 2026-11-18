@@ -227,3 +227,6 @@ button.link.inline { padding: 0; color: var(--accent); font-size: inherit; text-
 .quick-status.ok { color: var(--ok); }
 .ai-filled { border-color: var(--accent) !important; background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
 .preview { align-self: center; object-fit: contain; max-height: 120px; max-width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid var(--line); }
+.b-email { background: color-mix(in srgb, var(--accent) 15%, var(--card)); color: var(--accent); }
+.uid { flex-basis: 100%; font-size: 12px; }
+.uid code { font-size: 11px; }

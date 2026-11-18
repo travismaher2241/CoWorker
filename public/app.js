@@ -111,6 +111,7 @@ function requestCard({ r, s }) {
       <div class="req-head">
         <span class="person">${esc(r.person)}</span>
         <span class="badge b-${s.level}">${esc(s.reason)}</span>
+        ${r.source === 'email' && r.needsReview ? '<span class="badge b-email" title="Added automatically from an email. Check the details.">Added from email</span>' : ''}
       </div>
       <div class="subject">${esc(r.subject)}</div>
       <div class="meta">
@@ -124,6 +125,7 @@ function requestCard({ r, s }) {
       <span>${r.status === 'resolved' ? 'to get an answer' : 'waiting'}</span>
     </div>
     <div class="req-actions">
+      ${r.needsReview ? '<button data-act="reviewed" class="primary">Looks right</button>' : ''}
       ${r.status === 'open' ? `
         <button data-act="followup" class="${s.level !== 'waiting' ? 'primary' : ''}">Log follow-up</button>
         <button data-act="copy">Copy nudge text</button>
@@ -356,6 +358,8 @@ function bindEvents() {
         () => toast('Nudge text copied. Paste it into your reply in Outlook.'),
         () => window.prompt('Copy this text:', text),
       );
+    } else if (act === 'reviewed') {
+      save(store.updateRequest(r.id, { needsReview: false }));
     } else if (act === 'reopen') {
       save(store.updateRequest(r.id, { status: 'open', resolvedAt: null }));
     } else if (act === 'delete') {
@@ -391,7 +395,7 @@ function bindEvents() {
       if (!person || !subject) return toast('Who and what can\'t be empty.', true);
       save(store.updateRequest(r.id, {
         person, subject, details: clean(f.details.value, 5000),
-        sentAt: sydneyLocalToIso(f.sentAt.value), needBy: f.needBy.value || null,
+        sentAt: sydneyLocalToIso(f.sentAt.value), needBy: f.needBy.value || null, needsReview: false,
       }));
     }
     closeForm();
@@ -464,6 +468,8 @@ function bindEvents() {
     store.signIn().catch((err) => toast(`Sign-in failed: ${err.message}`, true)));
   $('#signOutBtn').addEventListener('click', () => store.signOut());
   $('#exportBtn').addEventListener('click', exportBackup);
+  $('#copyUid').addEventListener('click', () =>
+    navigator.clipboard.writeText($('#uid').textContent).then(() => toast('User ID copied')));
   document.addEventListener('focusout', () => setTimeout(() => {
     if (pendingRender && !document.activeElement?.closest('.inline-form')) render();
   }));
@@ -532,6 +538,7 @@ async function boot() {
     unsubscribe();
     if (!user) return showScreen('signin');
     $('#who').textContent = user.email || user.name || '';
+    $('#uid').textContent = user.uid;
     showScreen('app');
     resetSentAt();
     unsubscribe = store.subscribe(

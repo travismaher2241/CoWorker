@@ -53,6 +53,37 @@ Open the site, click **Sign in with Google**, and you're in.
 
 > The Firebase web settings above aren't secret (they end up in every Firebase web app's browser code). What protects your data is the sign-in plus the Firestore rules from step 1.4.
 
+## Optional: an email address you can BCC
+
+Set this up and you never type or screenshot again:
+
+- **New emails:** add the capture address as **BCC** when you send. The item appears in the app with the real recipients and sent time. If you BCC it again on a reply in the same thread, that's logged as a follow-up instead of a new item.
+- **Old emails you're still waiting on:** find them in Sent Items and **forward** them to the capture address. Gemini reads the original email, so the item is dated when you first sent it.
+
+Items that arrive this way show an **Added from email** tag. Press **Looks right** (or Edit) once you've checked them.
+
+> Check that your workplace allows BCC'ing or forwarding work email to an outside address before you use this.
+
+Setup (about 15 minutes):
+
+1. **Postmark** (free plan, 100 emails a month): sign up at <https://postmarkapp.com>, create a **Server**, and open its **Default Inbound Stream → Settings**.
+   - Copy the **inbound address** (something like `1a2b3c…@inbound.postmarkapp.com`). This is your capture address. Save it as an Outlook contact called "Tracker" so it's quick to BCC.
+   - Set the **Webhook URL** to `https://capture:YOUR_SECRET@coworker-tau.vercel.app/api/inbound`, using a long random password of your choice in place of `YOUR_SECRET`.
+2. **Firebase service account** (lets the server save items for you): Firebase console → gear icon → **Project settings → Service accounts → Generate new private key**. This downloads a `.json` file.
+3. **Vercel → Settings → Environment Variables**, add:
+
+   | Vercel variable | Value |
+   | --- | --- |
+   | `INBOUND_SECRET` | The same password you put in the webhook URL |
+   | `INBOUND_SENDERS` | Your work email address (comma-separate if more than one). Mail from anyone else is ignored. |
+   | `INBOUND_UID` | Your **User ID for email capture**, shown at the bottom of the app once you've signed in (there's a copy button) |
+   | `FIREBASE_SERVICE_ACCOUNT` | The entire contents of the `.json` file from step 2 |
+
+   `GEMINI_API_KEY` is needed too (from the main setup). Without it, BCC'd emails still work, but use the subject line as the description, and forwarded emails can't be read.
+4. **Redeploy** in Vercel, then BCC the capture address on a test email to yourself or a colleague.
+
+Keep the service account file private, and delete the downloaded copy once it's in Vercel.
+
 ## Using it
 
 - **Paste a screenshot of the sent email**: in Outlook, open the email in Sent Items, take a screenshot (Windows: `Win+Shift+S`, Mac: `Cmd+Ctrl+Shift+4`), then click the app and press `Ctrl+V`/`Cmd+V`. On a phone, tap the dashed box and pick the screenshot. Gemini fills in the form and highlights what it filled. Check it and press **Start tracking**. You can also paste the email's text instead.
@@ -79,6 +110,8 @@ Open the site, click **Sign in with Google**, and you're in.
 | `public/time.js` | Sydney time-zone helpers |
 | `public/store.js` | Firestore (live) and browser-only (demo) storage |
 | `api/config.js` | Vercel function that hands the browser the Firebase settings |
+| `api/inbound.js` | Webhook for the BCC / forward capture address (Postmark inbound) |
+| `api/_lib/` | Shared Gemini and Firestore (REST, service account) helpers |
 | `api/extract.js` | Vercel function that sends a screenshot or email text to Gemini (key stays server-side) |
 | `public/quickadd.js` | Paste / drop / pick a screenshot and fill the form |
 | `firestore.rules` | Firestore security rules |
