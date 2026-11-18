@@ -106,10 +106,14 @@ const nowIso = () => new Date().toISOString();
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
-  if (!authorized(req)) return res.status(401).json({ error: 'Not authorised' });
+  if (!authorized(req)) {
+    console.warn('Inbound rejected: wrong or missing secret in the webhook URL');
+    return res.status(401).json({ error: 'Not authorised: the password in the webhook URL does not match INBOUND_SECRET' });
+  }
 
   const uid = process.env.INBOUND_UID;
   if (!uid || !process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.warn('Inbound rejected: INBOUND_UID or FIREBASE_SERVICE_ACCOUNT missing');
     return res.status(503).json({ error: 'Email capture is not set up: add INBOUND_UID and FIREBASE_SERVICE_ACCOUNT in Vercel.' });
   }
 
@@ -123,6 +127,7 @@ export default async function handler(req, res) {
   }
 
   const c = classify(mail);
+  console.log('Inbound email', { from, forwarded: c.forwarded, subject: c.subject.slice(0, 80) });
   const id = crypto.createHash('sha256').update(c.messageId || `${from}|${c.subject}|${mail.Date}`).digest('hex').slice(0, 32);
   const userPath = `users/${uid}`;
 
