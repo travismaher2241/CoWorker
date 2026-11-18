@@ -73,6 +73,10 @@ export function showDate(ymd) {
 }
 
 export const showLongDay = (iso) => fmtLongDay.format(new Date(iso));
+const fmtHM = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const fmtDayLine = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+export const sydneyHM = (ms = Date.now()) => fmtHM.format(new Date(ms));
+export const sydneyDayLine = (ms = Date.now()) => fmtDayLine.format(new Date(ms));
 export const showClock = (ms = Date.now()) => fmtClock.format(new Date(ms));
 
 export function duration(ms) {

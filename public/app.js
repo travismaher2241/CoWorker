@@ -1,6 +1,6 @@
 import {
   isoToSydneyLocal, sydneyLocalToIso, todaySydney, addDays,
-  showDateTime, showDate, showClock, duration, relativeDay,
+  showDateTime, showDate, showClock, sydneyHM, sydneyDayLine, duration, relativeDay,
 } from './time.js';
 import { lastContact, requestStatus, nudgeText, PRIORITIES } from './logic.js';
 import { firebaseStore, localStore, DEFAULT_SETTINGS } from './store.js';
@@ -45,6 +45,21 @@ function save(promise) {
   });
 }
 
+// Split-flap tiles, like an airport departures board.
+const flap = (text, cls = '') =>
+  `<span class="flaps ${cls}" aria-label="${esc(text)}">${[...String(text).toUpperCase()]
+    .map((ch) => (ch === ' ' ? '<span class="gap"></span>' : `<span class="flap" aria-hidden="true">${esc(ch)}</span>`))
+    .join('')}</span>`;
+
+let flipTimer;
+function flipBoard() {
+  document.body.classList.add('flip-on');
+  clearTimeout(flipTimer);
+  flipTimer = setTimeout(() => document.body.classList.remove('flip-on'), 900);
+}
+
+const BOARD_WORD = { overdue: 'Delayed', nudge: 'Final call', waiting: 'Waiting', resolved: 'Arrived' };
+
 const clean = (v, max) => String(v ?? '').trim().slice(0, max);
 const status = (r) => requestStatus(r, state.settings.nudgeAfterDays);
 
@@ -77,11 +92,11 @@ function renderSummary() {
     : null;
 
   $('#waitingSummary').innerHTML = `
-    <div class="stat ${counts.overdue ? 'bad' : ''}"><b>${counts.overdue}</b><span>overdue</span></div>
-    <div class="stat ${counts.nudge ? 'warn' : ''}"><b>${counts.nudge}</b><span>need a nudge</span></div>
-    <div class="stat"><b>${open.length}</b><span>open in total</span></div>
-    <div class="stat"><b>${oldest ? duration(Date.now() - Date.parse(oldest)) : '–'}</b><span>longest wait</span></div>
-    <div class="stat"><b>${avg === null ? '–' : duration(avg)}</b><span>average time to answer</span></div>`;
+    <div class="stat ${counts.overdue ? 'bad' : ''}">${flap(String(counts.overdue))}<span>Delayed</span><small>past their need-by date</small></div>
+    <div class="stat ${counts.nudge ? 'warn' : ''}">${flap(String(counts.nudge))}<span>Final call</span><small>time to nudge</small></div>
+    <div class="stat">${flap(String(open.length))}<span>Open</span><small>still waiting</small></div>
+    <div class="stat">${flap(oldest ? duration(Date.now() - Date.parse(oldest)) : '--')}<span>Longest wait</span><small>oldest open item</small></div>
+    <div class="stat">${flap(avg === null ? '--' : duration(avg))}<span>Avg reply</span><small>time to get an answer</small></div>`;
 
   $('#waitingCount').textContent = open.length || '';
   $('#waitingCount').className = 'pill' + (counts.overdue + counts.nudge ? ' hot' : '');
@@ -106,26 +121,28 @@ function requestCard({ r, s }) {
   ];
 
   return `
-  <article class="card req lvl-${s.level}" data-id="${r.id}">
+  <article class="req lvl-${s.level}" data-id="${r.id}">
+    <div class="req-status">
+      <span class="status st-${s.level}"><i class="lamp"></i>${BOARD_WORD[s.level]}</span>
+    </div>
     <div class="req-main">
       <div class="req-head">
         <span class="person">${esc(r.person)}</span>
-        <span class="badge b-${s.level}">${esc(s.reason)}</span>
-        ${r.source === 'email' && r.needsReview ? '<span class="badge b-email" title="Added automatically from an email. Check the details.">Added from email</span>' : ''}
+        ${r.source === 'email' && r.needsReview ? '<span class="badge b-email" title="Added automatically from an email. Check the details.">From email · check me</span>' : ''}
       </div>
       <div class="subject">${esc(r.subject)}</div>
       <div class="meta">
-        Sent ${esc(showDateTime(r.sentAt))}
+        ${s.level !== 'waiting' && s.level !== 'resolved' ? `<b class="reason">${esc(s.reason)}</b> · ` : ''}Sent ${esc(showDateTime(r.sentAt))}
         ${nudges ? ` · ${nudges} follow-up${nudges > 1 ? 's' : ''}, last ${esc(showDateTime(lastContact(r)))}` : ' · no follow-ups yet'}
         ${r.needBy && r.status === 'open' ? ` · need by ${esc(showDate(r.needBy))}` : ''}
       </div>
     </div>
     <div class="req-wait">
-      <b>${duration(waitedMs)}</b>
-      <span>${r.status === 'resolved' ? 'to get an answer' : 'waiting'}</span>
+      ${flap(duration(waitedMs).replace('just now', 'now'))}
+      <span>${r.status === 'resolved' ? 'to get an answer' : 'waited so far'}</span>
     </div>
     <div class="req-actions">
-      ${r.needsReview ? '<button data-act="reviewed" class="primary">Looks right</button>' : ''}
+      ${r.needsReview ? '<button data-act="reviewed" class="review">Looks right ✓</button>' : ''}
       ${r.status === 'open' ? `
         <button data-act="followup" class="${s.level !== 'waiting' ? 'primary' : ''}">Log follow-up</button>
         <button data-act="copy">Copy nudge text</button>
@@ -486,6 +503,11 @@ function exportBackup() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+function renderClock() {
+  $('#clock').innerHTML = `${flap(sydneyHM(), 'clock-flaps')}<span class="clock-meta"><b>Sydney</b>${esc(sydneyDayLine())}</span>`;
+  $('#clock').title = showClock();
+}
+
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
   document.querySelectorAll('.panel').forEach((p) => (p.hidden = p.id !== `tab-${name}`));
@@ -514,7 +536,7 @@ async function boot() {
   let tab = null;
   try { tab = localStorage.getItem('tab'); } catch {}
   showTab(tab === 'todos' ? 'todos' : 'waiting');
-  $('#clock').textContent = showClock();
+  renderClock();
 
   const demo = new URLSearchParams(location.search).has('demo');
   if (demo) {
@@ -547,6 +569,7 @@ async function boot() {
         $('#nudgeAfter').value = state.settings.nudgeAfterDays;
         if (firstLoad && state.requests.length) $('#addRequestCard').open = false;
         firstLoad = false;
+        flipBoard();
         render();
       },
       (err) => toast(`Couldn't load your data: ${err.message}`, true),
@@ -555,7 +578,8 @@ async function boot() {
 
   // Keep the "waiting" clocks ticking.
   setInterval(() => {
-    $('#clock').textContent = showClock();
+    flipBoard();
+    renderClock();
     if (!state.openForm) render();
   }, 60000);
 }
