@@ -1,4 +1,4 @@
-# CoWorker Arrivals
+# CoWorker
 
 A small web app for two things:
 
