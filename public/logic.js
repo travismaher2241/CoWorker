@@ -1,5 +1,5 @@
 // Pure rules for the "waiting on" tracker, kept separate so they can be tested.
-import { DAY, duration, showDate, showLongDay, todaySydney, relativeDay } from './time.js';
+import { DAY, duration, showDate, showLongDay, todayLocal, relativeDay } from './time.js';
 
 export function lastContact(r) {
   const times = [r.sentAt, ...(r.followUps || []).map((f) => f.at)];
@@ -9,7 +9,7 @@ export function lastContact(r) {
 // Returns { level: 'overdue' | 'nudge' | 'waiting' | 'resolved', reason }
 export function requestStatus(r, nudgeAfterDays, nowMs = Date.now()) {
   if (r.status === 'resolved') return { level: 'resolved', reason: 'Resolved' };
-  const today = todaySydney(nowMs);
+  const today = todayLocal(nowMs);
   if (r.needBy && r.needBy < today) {
     return { level: 'overdue', reason: `Overdue: needed ${showDate(r.needBy)}` };
   }

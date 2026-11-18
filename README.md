@@ -5,7 +5,7 @@ A small web app for two things:
 1. **Waiting on**: log the emails you send coworkers asking for something (who, what, when sent), see how long each has been waiting, log follow-ups, copy a ready-made nudge email, and mark items resolved when you get an answer. Overdue items (past their "need by" date) turn red; items with no reply for too long (2 days by default, adjustable) turn amber.
 2. **To-do**: a personal to-do list with due dates and priorities, grouped into Overdue, Today, Next 7 days, Later and No date.
 
-There is no Outlook or email connection. To log an email quickly, **paste a screenshot of it** (or its text) and Gemini fills in who it went to, what you asked for, and when it was sent. You check the details and press Start tracking. All times are shown and entered in **Sydney time**, whatever time zone your device is set to.
+There is no Outlook or email connection. To log an email quickly, **paste a screenshot of it** (or its text) and Gemini fills in who it went to, what you asked for, and when it was sent. You check the details and press Start tracking. All times are shown and entered in **Melbourne time** (Drouin), whatever time zone your device is set to.
 
 It is a static site with one tiny serverless function, hosted on **Vercel**, with data stored in **Firebase (Cloud Firestore)** behind Google sign-in. Your data is private to your Google account and syncs between your computer and phone.
 
@@ -107,7 +107,7 @@ Keep the service account file private, and delete the downloaded copy once it's 
 | `public/index.html`, `public/styles.css` | The page |
 | `public/app.js` | Screens and interactions |
 | `public/logic.js` | Rules for overdue / needs-a-nudge, and the nudge email text |
-| `public/time.js` | Sydney time-zone helpers |
+| `public/time.js` | Melbourne time-zone helpers |
 | `public/store.js` | Firestore (live) and browser-only (demo) storage |
 | `api/config.js` | Vercel function that hands the browser the Firebase settings |
 | `api/inbound.js` | Webhook for the BCC / forward capture address (Postmark inbound) |

@@ -18,7 +18,7 @@
 import crypto from 'node:crypto';
 import { readEmail } from './_lib/gemini.js';
 import { createDoc, updateDoc, findWhere } from './_lib/firestore.js';
-import { sydneyLocalToIso } from '../public/time.js';
+import { localInputToIso } from '../public/time.js';
 
 const MAX_BODY = 20000;
 const list = (v) => (v || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -201,7 +201,7 @@ export default async function handler(req, res) {
       person: ai.person || 'Unknown',
       subject: ai.subject || threadKey(c.subject) || '(no subject)',
       details: ai.details,
-      sentAt: ai.sentAt ? sydneyLocalToIso(ai.sentAt) : c.sentAt,
+      sentAt: ai.sentAt ? localInputToIso(ai.sentAt) : c.sentAt,
       needBy: ai.needBy,
       emailKey: key,
       emailId: id,
@@ -217,7 +217,7 @@ export default async function handler(req, res) {
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
 // Reads the "From / Sent / To / Subject" block Outlook and Gmail put at the top of a forward.
-// Returns sentAt as Sydney local "YYYY-MM-DDTHH:MM" (or null).
+// Returns sentAt as Melbourne local "YYYY-MM-DDTHH:MM" (or null).
 export function parseForwardHeaders(body) {
   const text = String(body || '');
   const field = (names) => {

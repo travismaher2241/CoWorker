@@ -1,6 +1,6 @@
 import {
-  isoToSydneyLocal, sydneyLocalToIso, todaySydney, addDays,
-  showDateTime, showDate, showClock, sydneyHM, sydneyDayLine, duration, relativeDay,
+  isoToLocalInput, localInputToIso, todayLocal, addDays,
+  showDateTime, showDate, showClock, localHM, localDayLine, duration, relativeDay,
 } from './time.js';
 import { lastContact, requestStatus, nudgeText, PRIORITIES } from './logic.js';
 import { firebaseStore, localStore, DEFAULT_SETTINGS } from './store.js';
@@ -112,7 +112,7 @@ function requestCard({ r, s }) {
   const expanded = state.expanded.has(r.id);
   const form = state.openForm?.id === r.id ? state.openForm.kind : null;
   const nudges = r.followUps.length;
-  const nowLocal = isoToSydneyLocal(nowIso());
+  const nowLocal = isoToLocalInput(nowIso());
 
   const timeline = [
     { at: r.sentAt, label: 'Original email sent', note: r.details },
@@ -171,7 +171,7 @@ function requestCard({ r, s }) {
       <form class="inline-form" data-form="edit">
         <label>Who <input name="person" value="${esc(r.person)}" list="peopleList" required></label>
         <label class="grow">What <input name="subject" value="${esc(r.subject)}" required></label>
-        <label>Sent <input name="sentAt" type="datetime-local" value="${isoToSydneyLocal(r.sentAt)}" required></label>
+        <label>Sent <input name="sentAt" type="datetime-local" value="${isoToLocalInput(r.sentAt)}" required></label>
         <label>Need by <input name="needBy" type="date" value="${esc(r.needBy || '')}"></label>
         <label class="full">Notes <textarea name="details" rows="2">${esc(r.details)}</textarea></label>
         <button class="primary">Save</button><button type="button" data-act="cancel" class="link">Cancel</button>
@@ -205,7 +205,7 @@ function renderRequests() {
 // ---------------- to-dos ----------------
 
 function todoRow(t) {
-  const today = todaySydney();
+  const today = todayLocal();
   const overdue = !t.done && t.due && t.due < today;
   if (state.openForm?.id === t.id && state.openForm.kind === 'todo-edit') {
     return `
@@ -240,7 +240,7 @@ const PRIO_RANK = { high: 0, normal: 1, low: 2 };
 
 function renderTodos() {
   const q = state.todoSearch.toLowerCase();
-  const today = todaySydney();
+  const today = todayLocal();
   const weekEnd = addDays(today, 7);
   const items = state.todos.filter((t) => !q || `${t.text} ${t.notes}`.toLowerCase().includes(q));
   const open = items.filter((t) => !t.done);
@@ -297,7 +297,7 @@ function render(force) {
 // ---------------- events: waiting on ----------------
 
 function resetSentAt() {
-  $('#requestForm').sentAt.value = isoToSydneyLocal(nowIso());
+  $('#requestForm').sentAt.value = isoToLocalInput(nowIso());
 }
 
 function setFilter(filter) {
@@ -326,7 +326,7 @@ function bindEvents() {
     save(store.addRequest({
       person, subject,
       details: clean(f.details.value, 5000),
-      sentAt: f.sentAt.value ? sydneyLocalToIso(f.sentAt.value) : nowIso(),
+      sentAt: f.sentAt.value ? localInputToIso(f.sentAt.value) : nowIso(),
       needBy: f.needBy.value || null,
       followUps: [], status: 'open', resolvedAt: null, resolution: '', createdAt: nowIso(),
     }));
@@ -394,7 +394,7 @@ function bindEvents() {
     if (f.dataset.form === 'followup') {
       const fu = {
         id: crypto.randomUUID(),
-        at: sydneyLocalToIso(f.at.value),
+        at: localInputToIso(f.at.value),
         method: f.method.value,
         note: clean(f.note.value, 1000),
       };
@@ -403,7 +403,7 @@ function bindEvents() {
       toast('Follow-up logged');
     } else if (f.dataset.form === 'resolve') {
       save(store.updateRequest(r.id, {
-        status: 'resolved', resolvedAt: sydneyLocalToIso(f.resolvedAt.value), resolution: clean(f.resolution.value, 1000),
+        status: 'resolved', resolvedAt: localInputToIso(f.resolvedAt.value), resolution: clean(f.resolution.value, 1000),
       }));
       toast('Resolved. One less thing to chase.');
     } else if (f.dataset.form === 'edit') {
@@ -412,7 +412,7 @@ function bindEvents() {
       if (!person || !subject) return toast('Who and what can\'t be empty.', true);
       save(store.updateRequest(r.id, {
         person, subject, details: clean(f.details.value, 5000),
-        sentAt: sydneyLocalToIso(f.sentAt.value), needBy: f.needBy.value || null, needsReview: false,
+        sentAt: localInputToIso(f.sentAt.value), needBy: f.needBy.value || null, needsReview: false,
       }));
     }
     closeForm();
@@ -485,11 +485,29 @@ function bindEvents() {
     store.signIn().catch((err) => toast(`Sign-in failed: ${err.message}`, true)));
   $('#signOutBtn').addEventListener('click', () => store.signOut());
   $('#exportBtn').addEventListener('click', exportBackup);
+  document.querySelectorAll('[data-theme-pick]').forEach((b) => b.addEventListener('click', () => {
+    applyTheme(b.dataset.themePick);
+    if (state.settings.theme !== b.dataset.themePick) {
+      state.settings = { ...state.settings, theme: b.dataset.themePick };
+      if (!$('#screen-app').hidden) save(store.saveSettings(state.settings));
+    }
+  }));
   $('#copyUid').addEventListener('click', () =>
     navigator.clipboard.writeText($('#uid').textContent).then(() => toast('User ID copied')));
   document.addEventListener('focusout', () => setTimeout(() => {
     if (pendingRender && !document.activeElement?.closest('.inline-form')) render();
   }));
+}
+
+const THEMES = { platform: '#e9ede6', tram: '#efe8d6', harbour: '#0e1a2b' };
+
+function applyTheme(name) {
+  if (!THEMES[name]) name = 'platform';
+  document.documentElement.dataset.theme = name;
+  document.querySelector('meta[name="theme-color"]').content = THEMES[name];
+  document.querySelectorAll('[data-theme-pick]').forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.themePick === name)));
+  try { localStorage.setItem('coworker-theme', name); } catch { /* private mode */ }
 }
 
 function exportBackup() {
@@ -498,13 +516,13 @@ function exportBackup() {
   }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `coworker-backup-${todaySydney()}.json`;
+  a.download = `coworker-backup-${todayLocal()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function renderClock() {
-  $('#clock').innerHTML = `${flap(sydneyHM(), 'clock-flaps')}<span class="clock-meta"><b>Sydney</b>${esc(sydneyDayLine())}</span>`;
+  $('#clock').innerHTML = `${flap(localHM(), 'clock-flaps')}<span class="clock-meta"><b>Drouin</b>${esc(localDayLine())}</span>`;
   $('#clock').title = showClock();
 }
 
@@ -533,6 +551,7 @@ async function loadConfig() {
 
 async function boot() {
   bindEvents();
+  applyTheme(document.documentElement.dataset.theme);
   let tab = null;
   try { tab = localStorage.getItem('tab'); } catch {}
   showTab(tab === 'todos' ? 'todos' : 'waiting');
@@ -567,6 +586,7 @@ async function boot() {
       (data) => {
         Object.assign(state, data);
         $('#nudgeAfter').value = state.settings.nudgeAfterDays;
+        if (state.settings.theme) applyTheme(state.settings.theme);
         if (firstLoad && state.requests.length) $('#addRequestCard').open = false;
         firstLoad = false;
         flipBoard();

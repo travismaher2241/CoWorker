@@ -1,6 +1,6 @@
-// Date/time helpers. Everything is shown and entered in Sydney time,
+// Date/time helpers. Everything is shown and entered in Melbourne time (Trav is in Drouin, Vic),
 // whatever time zone the computer or phone happens to be set to.
-export const TZ = 'Australia/Sydney';
+export const TZ = 'Australia/Melbourne';
 export const DAY = 86400000;
 
 const fmtParts = new Intl.DateTimeFormat('en-AU', {
@@ -14,15 +14,15 @@ function zoneParts(ms) {
   return p;
 }
 
-// Offset of Sydney from UTC at a given instant, in ms.
+// Offset of local (Melbourne) time from UTC at a given instant, in ms.
 function zoneOffset(ms) {
   const p = zoneParts(ms);
   const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
   return asUtc - Math.floor(ms / 1000) * 1000;
 }
 
-// "2026-11-18T09:30" (Sydney wall time) -> ISO string
-export function sydneyLocalToIso(local) {
+// "2026-11-18T09:30" (Melbourne wall time) -> ISO string
+export function localInputToIso(local) {
   const [d, t = '00:00'] = local.split('T');
   const [y, m, day] = d.split('-').map(Number);
   const [hh, mm] = t.split(':').map(Number);
@@ -33,12 +33,12 @@ export function sydneyLocalToIso(local) {
 }
 
 // ISO -> "2026-11-18T09:30" for a datetime-local input
-export function isoToSydneyLocal(iso) {
+export function isoToLocalInput(iso) {
   const p = zoneParts(new Date(iso).getTime());
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
-export function todaySydney(nowMs = Date.now()) {
+export function todayLocal(nowMs = Date.now()) {
   const p = zoneParts(nowMs);
   return `${p.year}-${p.month}-${p.day}`;
 }
@@ -75,8 +75,8 @@ export function showDate(ymd) {
 export const showLongDay = (iso) => fmtLongDay.format(new Date(iso));
 const fmtHM = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const fmtDayLine = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
-export const sydneyHM = (ms = Date.now()) => fmtHM.format(new Date(ms));
-export const sydneyDayLine = (ms = Date.now()) => fmtDayLine.format(new Date(ms));
+export const localHM = (ms = Date.now()) => fmtHM.format(new Date(ms));
+export const localDayLine = (ms = Date.now()) => fmtDayLine.format(new Date(ms));
 export const showClock = (ms = Date.now()) => fmtClock.format(new Date(ms));
 
 export function duration(ms) {
@@ -91,7 +91,7 @@ export function duration(ms) {
   return `${days} days`;
 }
 
-export function relativeDay(ymd, today = todaySydney()) {
+export function relativeDay(ymd, today = todayLocal()) {
   const diff = Math.round((Date.parse(ymd) - Date.parse(today)) / DAY);
   if (diff === 0) return 'today';
   if (diff === 1) return 'tomorrow';

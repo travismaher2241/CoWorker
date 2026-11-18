@@ -6,7 +6,7 @@ const SCHEMA = {
     isEmail: { type: 'BOOLEAN', description: 'false if this does not look like an email at all' },
     person: { type: 'STRING', description: 'Who the email was sent to: name(s) as written, e.g. "Sam Lee" or "Sam Lee, Priya Shah". Prefer display names over addresses.' },
     subject: { type: 'STRING', description: 'What the sender is waiting for, as a short task-style phrase (max ~12 words), e.g. "Q3 budget numbers for the board pack".' },
-    sentAt: { type: 'STRING', nullable: true, description: 'When it was sent, as Sydney local time "YYYY-MM-DDTHH:MM". null if not visible.' },
+    sentAt: { type: 'STRING', nullable: true, description: 'When it was sent, as Melbourne (Victoria) local time "YYYY-MM-DDTHH:MM". null if not visible.' },
     needBy: { type: 'STRING', nullable: true, description: 'A deadline the email asks for, as "YYYY-MM-DD". null if none is mentioned.' },
     emailSubject: { type: 'STRING', nullable: true, description: 'The email subject line, if visible.' },
     summary: { type: 'STRING', description: 'One or two sentences on what was asked, for the notes field.' },
@@ -14,9 +14,9 @@ const SCHEMA = {
   required: ['isEmail', 'person', 'subject', 'sentAt', 'needBy', 'emailSubject', 'summary'],
 };
 
-function sydneyNow() {
+function localNow() {
   return new Intl.DateTimeFormat('en-AU', {
-    timeZone: 'Australia/Sydney', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: 'Australia/Melbourne', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     hour: 'numeric', minute: '2-digit',
   }).format(new Date());
 }
@@ -24,8 +24,8 @@ function sydneyNow() {
 export function basePrompt() {
   return `You are helping someone track emails they SENT to coworkers and are waiting on a reply for.
 The input is a screenshot or the text of one email they sent (it may be in Outlook's Sent Items, a reading pane, a phone mail app, or a forwarded copy).
-It is now ${sydneyNow()} in Sydney, Australia. Use that to resolve relative dates such as "Yesterday 3:15 PM", "Mon 9:02 AM" or a time with no date (meaning today).
-Times shown in the email are already Sydney local time unless a time zone is given. Australian dates are day/month/year.
+It is now ${localNow()} in Melbourne, Victoria, Australia (the user is in Drouin). Use that to resolve relative dates such as "Yesterday 3:15 PM", "Mon 9:02 AM" or a time with no date (meaning today).
+Times shown in the email are already Melbourne local time unless a time zone is given. Australian dates are day/month/year.
 Extract:
 - person: the recipient(s) in To (not the sender, ignore Cc unless there is no To).
 - subject: what the sender is asking the recipient for, phrased as a short thing they're waiting on.

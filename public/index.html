@@ -8,7 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <meta name="theme-color" content="#0b0d10">
+  <meta name="theme-color" content="#e9ede6">
+  <script>
+    // Apply the saved colour theme before the page paints, so it doesn't flash.
+    try { var t = localStorage.getItem('coworker-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,7 +20,14 @@
   <header class="top">
     <div class="brand">
       <h1><span class="h1-mark">CW</span>CoWorker <em>Arrivals</em></h1>
-      <span class="clock" id="clock" title="Times are shown in Sydney time"></span>
+      <div class="brand-side">
+        <div class="themes" role="group" aria-label="Colours">
+          <button type="button" data-theme-pick="platform" title="Platform (light)" aria-label="Platform colours"></button>
+          <button type="button" data-theme-pick="tram" title="Tram (green and cream)" aria-label="Tram colours"></button>
+          <button type="button" data-theme-pick="harbour" title="Harbour (navy)" aria-label="Harbour colours"></button>
+        </div>
+        <span class="clock" id="clock" title="Times are shown in Drouin (Melbourne) time"></span>
+      </div>
     </div>
   </header>
 

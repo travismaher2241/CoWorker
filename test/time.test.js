@@ -1,24 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sydneyLocalToIso, isoToSydneyLocal, todaySydney, duration, addDays, relativeDay } from '../public/time.js';
+import { localInputToIso, isoToLocalInput, todayLocal, duration, addDays, relativeDay } from '../public/time.js';
 import { requestStatus, lastContact, nudgeText } from '../public/logic.js';
 
-test('Sydney wall time converts to UTC in summer (AEDT, +11)', () => {
-  assert.equal(sydneyLocalToIso('2026-11-18T09:16'), '2026-11-17T22:16:00.000Z');
+test('Melbourne wall time converts to UTC in summer (AEDT, +11)', () => {
+  assert.equal(localInputToIso('2026-11-18T09:16'), '2026-11-17T22:16:00.000Z');
 });
 
-test('Sydney wall time converts to UTC in winter (AEST, +10)', () => {
-  assert.equal(sydneyLocalToIso('2026-07-01T09:00'), '2026-06-30T23:00:00.000Z');
+test('Melbourne wall time converts to UTC in winter (AEST, +10)', () => {
+  assert.equal(localInputToIso('2026-07-01T09:00'), '2026-06-30T23:00:00.000Z');
 });
 
 test('round trips through the input format', () => {
   for (const local of ['2026-04-05T01:30', '2026-10-04T03:30', '2026-12-31T23:59']) {
-    assert.equal(isoToSydneyLocal(sydneyLocalToIso(local)), local);
+    assert.equal(isoToLocalInput(localInputToIso(local)), local);
   }
 });
 
-test('"today" is the Sydney date, not the UTC date', () => {
-  assert.equal(todaySydney(Date.parse('2026-11-17T22:16:00Z')), '2026-11-18');
+test('"today" is the Melbourne date, not the UTC date', () => {
+  assert.equal(todayLocal(Date.parse('2026-11-17T22:16:00Z')), '2026-11-18');
 });
 
 test('durations read naturally', () => {
@@ -35,7 +35,7 @@ test('date maths', () => {
   assert.equal(relativeDay('2026-11-15', '2026-11-18'), '3 days ago');
 });
 
-const NOW = Date.parse('2026-11-17T22:00:00Z'); // Wed 18 Nov, 9am Sydney
+const NOW = Date.parse('2026-11-17T22:00:00Z'); // Wed 18 Nov, 9am Melbourne
 const base = { person: 'Sam Lee', subject: 'Q3 budget numbers', sentAt: '2026-11-17T21:00:00Z', followUps: [], status: 'open' };
 
 test('a fresh request is just waiting', () => {
